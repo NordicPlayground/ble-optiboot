@@ -316,8 +316,7 @@ int main(void) __attribute__ ((OS_main)) __attribute__ ((section (".init9")));
 static void hardware_init (void);
 static void uart_update_firmware (void);
 static uint8_t uart_validate_byte (uint8_t ch);
-static uint8_t ble_process_data (hal_aci_evt_t *aci_data);
-static void ble_update_firmware(void);
+static uint8_t ble_update_firmware(void);
 static void putch(uint8_t ch);
 static uint8_t getch(void);
 static void getNch(uint8_t count);
@@ -480,11 +479,12 @@ int main (void)
      * received character is among the STK500 constants, and enter the UART
      * bootloader procedure if it is
     */
-    if (lib_aci_event_get(&aci_state, &aci_data) &&
-               ble_process_data(&aci_data)) {
+    if (ble_update_firmware()) {
 
       dfu_update(&aci_state, &(aci_data.evt));
-      ble_update_firmware ();
+      for (;;) {
+        (void)ble_update_firmware ();
+      }
     } else if (uart_validate_byte (ch)) {
       verifySpace ();
       uart_update_firmware ();
@@ -793,147 +793,87 @@ static uint8_t uart_validate_byte (uint8_t ch)
   return ret;
 }
 
-static void ble_update_firmware (void)
+static uint8_t ble_update_firmware (void)
 {
   hal_aci_evt_t aci_data;
   aci_evt_t *aci_evt;
 
-  watchdogConfig(WATCHDOG_1S);
+  uint8_t dfu_mode = 0;
 
-  for(;;) {
-    watchdogReset();
-
-    if (!lib_aci_event_get(&aci_state, &aci_data)) {
-      return;
-    }
-
-    aci_evt = &(aci_data.evt);
-
-    switch(aci_evt->evt_opcode) {
-    case ACI_EVT_DEVICE_STARTED:
-      aci_state.data_credit_total =
-        aci_evt->params.device_started.credit_available;
-      if (ACI_DEVICE_STANDBY == aci_evt->params.device_started.device_mode) {
-        if (aci_evt->params.device_started.hw_error) {
-            /* Magic number used to make sure the HW error event
-             * is handled correctly. */
-            _delay_ms (20);
-        }
-        else {
-          lib_aci_connect (180,   /* timeout in seconds */
-                           0x0050 /* advertising interval 50ms*/);
-        }
-      }
-      break; /* ACI Device Started Event */
-
-    case ACI_EVT_CONNECTED:
-      aci_state.data_credit_available = aci_state.data_credit_total;
-      break;
-
-    case ACI_EVT_DATA_CREDIT:
-      aci_state.data_credit_available = aci_state.data_credit_available +
-                                        aci_evt->params.data_credit.credit;
-      break;
-
-    case ACI_EVT_PIPE_ERROR:
-      if (ACI_STATUS_ERROR_PEER_ATT_ERROR !=
-        aci_evt->params.pipe_error.error_code) {
-        aci_state.data_credit_available++;
-      }
-      break;
-
-    case ACI_EVT_DATA_RECEIVED:
-      dfu_update(&aci_state, aci_evt);
-      break;
-
-    case ACI_EVT_DISCONNECTED:
-      lib_aci_connect (180,   /* timeout in seconds */
-                       0x0050 /* advertising interval 50ms*/);
-      break;
-
-    case ACI_EVT_HW_ERROR:
-      lib_aci_connect (180,   /* timeout in seconds */
-                       0x0050 /* advertising interval 50ms*/);
-    break;
-
-    case ACI_EVT_PIPE_STATUS:
-      break;
-
-    case ACI_EVT_TIMING:
-      break;
-
-    default:
-      break;
-    }
+  if (!lib_aci_event_get(&aci_state, &aci_data)) {
+    return 0;
   }
-}
-
-static uint8_t ble_process_data (hal_aci_evt_t *aci_data)
-{
-  aci_evt_t *aci_evt;
-  aci_evt = &(aci_data->evt);
-  uint8_t ret = 0;
 
   watchdogReset();
 
-  /* Process the ACI event we received */
+  aci_evt = &(aci_data.evt);
+
   switch(aci_evt->evt_opcode) {
-    case ACI_EVT_DEVICE_STARTED:
-      aci_state.data_credit_total =
-        aci_evt->params.device_started.credit_available;
-      if (ACI_DEVICE_STANDBY == aci_evt->params.device_started.device_mode) {
-        if (aci_evt->params.device_started.hw_error) {
+  case ACI_EVT_DEVICE_STARTED:
+    aci_state.data_credit_total =
+      aci_evt->params.device_started.credit_available;
+    if (ACI_DEVICE_STANDBY == aci_evt->params.device_started.device_mode) {
+      if (aci_evt->params.device_started.hw_error) {
           /* Magic number used to make sure the HW error event
            * is handled correctly. */
           _delay_ms (20);
-        }
-        else {
-          lib_aci_connect (180,   /* timeout in seconds */
-                           0x0050 /* advertising interval 50ms*/);
-        }
       }
-      break; /* ACI Device Started Event */
-
-    case ACI_EVT_CONNECTED:
-      aci_state.data_credit_available = aci_state.data_credit_total;
-      break;
-
-    case ACI_EVT_DATA_CREDIT:
-      aci_state.data_credit_available = aci_state.data_credit_available +
-                                        aci_evt->params.data_credit.credit;
-      break;
-
-    case ACI_EVT_PIPE_ERROR:
-      if (ACI_STATUS_ERROR_PEER_ATT_ERROR !=
-        aci_evt->params.pipe_error.error_code)
-      {
-        aci_state.data_credit_available++;
+      else {
+        lib_aci_connect (180,   /* timeout in seconds */
+                         0x0050 /* advertising interval 50ms*/);
       }
-      break;
+    }
+    break; /* ACI Device Started Event */
 
-    case ACI_EVT_DATA_RECEIVED:
-      /* If data received is on either of the DFU pipes, return success */
-      if (PIPE_DEVICE_FIRMWARE_UPDATE_BLE_SERVICE_DFU_PACKET_RX == aci_evt->params.data_received.rx_data.pipe_number ||
-          PIPE_DEVICE_FIRMWARE_UPDATE_BLE_SERVICE_DFU_CONTROL_POINT_RX_ACK_AUTO == aci_evt->params.data_received.rx_data.pipe_number) {
-        ret = 1;
-      }
-      break;
-
-    case ACI_EVT_DISCONNECTED:
-      lib_aci_connect (180,   /* timeout in seconds */
-                       0x0050 /* advertising interval 50ms*/);
-      break;
-
-    case ACI_EVT_HW_ERROR:
-      lib_aci_connect (180,   /* timeout in seconds */
-                       0x0050 /* advertising interval 50ms*/);
+  case ACI_EVT_CONNECTED:
+    aci_state.data_credit_available = aci_state.data_credit_total;
     break;
 
-    default:
-      break;
+  case ACI_EVT_DATA_CREDIT:
+    aci_state.data_credit_available = aci_state.data_credit_available +
+                                      aci_evt->params.data_credit.credit;
+    break;
+
+  case ACI_EVT_PIPE_ERROR:
+    if (ACI_STATUS_ERROR_PEER_ATT_ERROR !=
+      aci_evt->params.pipe_error.error_code) {
+      aci_state.data_credit_available++;
+    }
+    break;
+
+  case ACI_EVT_DATA_RECEIVED:
+    /* If data received is on either of the DFU pipes, return success */
+    if (PIPE_DEVICE_FIRMWARE_UPDATE_BLE_SERVICE_DFU_PACKET_RX == aci_evt->params.data_received.rx_data.pipe_number ||
+        PIPE_DEVICE_FIRMWARE_UPDATE_BLE_SERVICE_DFU_CONTROL_POINT_RX_ACK_AUTO == aci_evt->params.data_received.rx_data.pipe_number) {
+      dfu_mode = 1;
+    }
+
+    if (dfu_mode) {
+      dfu_update(&aci_state, aci_evt);
+    }
+    break;
+
+  case ACI_EVT_DISCONNECTED:
+    lib_aci_connect (180,   /* timeout in seconds */
+                     0x0050 /* advertising interval 50ms*/);
+    break;
+
+  case ACI_EVT_HW_ERROR:
+    lib_aci_connect (180,   /* timeout in seconds */
+                     0x0050 /* advertising interval 50ms*/);
+  break;
+
+  case ACI_EVT_PIPE_STATUS:
+    break;
+
+  case ACI_EVT_TIMING:
+    break;
+
+  default:
+    break;
   }
 
-  return ret;
+  return dfu_mode;
 }
 
 static void putch(uint8_t ch)
