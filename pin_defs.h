@@ -1,8 +1,13 @@
 /*------------------------------------------------------------------------ */
-#if defined(__AVR_ATmega168__) || defined(__AVR_ATmega328P__) || defined(__AVR_ATmega88) || defined(__AVR_ATmega8__) || defined(__AVR_ATmega88__)
+#if defined(__AVR_ATmega168__)  || \
+    defined(__AVR_ATmega328P__) || \
+    defined(__AVR_ATmega88)     || \
+    defined(__AVR_ATmega8__)    || \
+    defined(__AVR_ATmega88__)
 /*------------------------------------------------------------------------ */
 
-/* Onboard LED is connected to pin PB5 in Arduino NG, Diecimila, and Duemilanove
+/* Onboard LED is connected to pin PB5 in Arduino NG, Diecimila, and
+ * Duemilanove
  */ 
 #if !defined(LED)
 #define LED B5
@@ -19,17 +24,17 @@
 #endif
 
 #if defined(__AVR_ATmega8__) || defined(__AVR_ATmega32__)
-  //Name conversion R.Wiersma
-  #define UCSR0A	UCSRA
-  #define UDR0 		UDR
-  #define UDRE0 	UDRE
-  #define RXC0		RXC
-  #define FE0           FE
-  #define TIFR1 	TIFR
-  #define WDTCSR	WDTCR
+  /* Name conversion R.Wiersma */
+  #define UCSR0A  UCSRA
+  #define UDR0    UDR
+  #define UDRE0   UDRE
+  #define RXC0    RXC
+  #define FE0     FE
+  #define TIFR1   TIFR
+  #define WDTCSR  WDTCR
 #endif
 #if defined(__AVR_ATmega32__)
-  #define WDCE		WDTOE
+  #define WDCE    WDTOE
 #endif
 
 /* Luminet support */
@@ -53,7 +58,9 @@
 
 /*------------------------------------------------------------------------ */
 /* Sanguino support (and other 40pin DIP cpus) */
-#if defined(__AVR_ATmega644P__) || defined(__AVR_ATmega1284P__) || defined(__AVR_ATmega32__)
+#if defined(__AVR_ATmega644P__)   || \
+    defined(__AVR_ATmega1284P__)  || \
+    defined(__AVR_ATmega32__)
 /*------------------------------------------------------------------------ */
 /* Onboard LED is connected to pin PB0 on Sanguino */ 
 #if !defined(LED)

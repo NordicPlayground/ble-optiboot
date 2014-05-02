@@ -50,7 +50,7 @@ export
 
 # defaults
 MCU_TARGET = atmega168
-LDSECTIONS  = -Wl,--section-start=.text=0x3e00 -Wl,--section-start=.version=0x3ffe
+LDSECTIONS  = -Wl,--section-start=.text=0x3800 -Wl,--section-start=.version=0x3ffe
 
 # Build environments
 # Start of some ugly makefile-isms to allow optiboot to be built
@@ -102,24 +102,26 @@ STK500-2 = $(STK500) -d$(MCU_TARGET) -ms -q -lCF -LCF -cUSB -I200kHz -s -wt
 # End of build environment code.
 
 
-OBJ        = $(PROGRAM).o
-OPTIMIZE = -Os -fno-inline-small-functions -fno-split-wide-types -mshort-calls
+OBJ        = $(PROGRAM).o acilib.o dfu.o lib_aci.o aci_queue.o hal_aci_tl.o
+OPTIMIZE = -Os -fno-inline-small-functions -fno-split-wide-types
+# -mshort-calls
 
 DEFS       = 
-LIBS       =
+LIBS       = acilib.o dfu.o lib_aci.o aci_queue.o hal_aci_tl.o
 
 CC         = $(GCCROOT)avr-gcc
 
 # Override is only needed by avr-lib build system.
 
-override CFLAGS        = -g -Wall $(OPTIMIZE) -mmcu=$(MCU_TARGET) -DF_CPU=$(AVR_FREQ) $(DEFS)
-override LDFLAGS       = $(LDSECTIONS) -Wl,--relax -nostartfiles -nostdlib
+override CFLAGS        = -g -Wall -Werror $(OPTIMIZE) -mmcu=$(MCU_TARGET) -DF_CPU=$(AVR_FREQ) $(DEFS)
+override LDFLAGS       = $(LDSECTIONS) -Wl,--relax -nostartfiles
+# -nostdlib
 #-Wl,--gc-sections
 
 OBJCOPY        = $(GCCROOT)avr-objcopy
 OBJDUMP        = $(call fixpath,$(GCCROOT)avr-objdump)
 
-SIZE           = $(GCCROOT)avr-size
+SIZE           = $(GCCROOT)avr-size --radix=16 --format=SysV
 
 #
 # Make command-line Options.
@@ -214,7 +216,7 @@ virboot328: TARGET = atmega328
 virboot328: MCU_TARGET = atmega328p
 virboot328: CFLAGS += $(COMMON_OPTIONS) '-DVIRTUAL_BOOT'
 virboot328: AVR_FREQ ?= 16000000L
-virboot328: LDSECTIONS  = -Wl,--section-start=.text=0x7e00 -Wl,--section-start=.version=0x7ffe
+virboot328: LDSECTIONS  = -Wl,--section-start=.text=0x7000 -Wl,--section-start=.version=0x7ffe
 virboot328: $(PROGRAM)_atmega328.hex
 virboot328: $(PROGRAM)_atmega328.lst
 
@@ -243,7 +245,7 @@ atmega328: TARGET = atmega328
 atmega328: MCU_TARGET = atmega328p
 atmega328: CFLAGS += $(COMMON_OPTIONS)
 atmega328: AVR_FREQ ?= 16000000L
-atmega328: LDSECTIONS  = -Wl,--section-start=.text=0x7e00 -Wl,--section-start=.version=0x7ffe
+atmega328: LDSECTIONS  = -Wl,--section-start=.text=0x7000 -Wl,--section-start=.version=0x7ffe
 atmega328: $(PROGRAM)_atmega328.hex
 atmega328: $(PROGRAM)_atmega328.lst
 
