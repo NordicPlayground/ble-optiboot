@@ -21,12 +21,10 @@ static void m_reset (void);
 static void m_write_page (uint32_t page, uint8_t *buf);
 
 static uint8_t state = ST_ANY;
-
 static uint32_t firmware_len;
 static uint16_t notify_every;
 static uint32_t total_bytes_received;
 static uint16_t packets_received;
-
 static uint32_t page;
 static uint8_t page_buffer[SPM_PAGESIZE];
 static uint8_t page_index;
