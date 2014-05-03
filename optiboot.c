@@ -458,8 +458,7 @@ int main (void)
   if (NULL != services_pipe_type_mapping) {
     aci_state.aci_setup_info.services_pipe_type_mapping =
       &services_pipe_type_mapping[0];
-  }
-  else {
+  } else {
     aci_state.aci_setup_info.services_pipe_type_mapping = NULL;
   }
   aci_state.aci_setup_info.number_of_pipes = NUMBER_OF_PIPES;
