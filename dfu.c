@@ -31,8 +31,6 @@ static uint32_t page;
 static uint8_t page_buffer[SPM_PAGESIZE];
 static uint8_t page_index;
 
-static uint8_t dfu_complete;
-
 /* DFU command point op codes */
 enum
 {
@@ -210,7 +208,6 @@ static uint8_t dfu_image_size_set (aci_state_t *aci_state, aci_evt_t *aci_evt)
 static uint8_t dfu_image_activate (aci_state_t *aci_state, aci_evt_t *aci_evt)
 {
   hal_aci_evt_t aci_data;
-  dfu_complete = 1;
 
   lib_aci_disconnect(aci_state, ACI_REASON_TERMINATE);
 
@@ -293,7 +290,7 @@ void dfu_initialize (void)
   state = ST_IDLE;
 }
 
-uint8_t dfu_update (aci_state_t *aci_state, aci_evt_t *aci_evt)
+void dfu_update (aci_state_t *aci_state, aci_evt_t *aci_evt)
 {
   const aci_rx_data_t *rx_data = &(aci_evt->params.data_received.rx_data);
   uint8_t event = EV_ANY;
@@ -327,6 +324,4 @@ uint8_t dfu_update (aci_state_t *aci_state, aci_evt_t *aci_evt)
       }
     }
   }
-
-  return dfu_complete;
 }
