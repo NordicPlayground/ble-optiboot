@@ -84,7 +84,7 @@ typedef struct
 	uint8_t (*fn)(aci_state_t *aci_state, aci_evt_t *aci_evt);
 } dfu_transition_t;
 
-void dfu_initialize (void);
+void dfu_init (void);
 void dfu_update (aci_state_t *aci_state, aci_evt_t *aci_evt);
 
 #endif /* DFU_H_ */

@@ -467,7 +467,7 @@ int main (void)
 
   boot_key = BOOTLOADER_KEY;
 
-  dfu_initialize();
+  dfu_init ();
 
   for (;;) {
     /* We grab the value in the UDR register without looping, as we need to do

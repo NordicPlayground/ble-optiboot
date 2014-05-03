@@ -283,7 +283,7 @@ dfu_transition_t trans[] = {
 
 #define TRANS_COUNT (sizeof(trans)/sizeof(*trans))
 
-void dfu_initialize (void)
+void dfu_init (void)
 {
   state = ST_IDLE;
 }
