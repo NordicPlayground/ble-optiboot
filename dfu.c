@@ -16,7 +16,7 @@ static uint8_t dfu_reset (aci_state_t *aci_state, aci_evt_t *aci_evt);
 
 static void m_notify (aci_state_t *aci_state);
 static bool m_send (aci_state_t *aci_state, uint8_t *buff, uint8_t buff_len);
-static void m_write_page (uint32_t page, uint8_t *buf);
+static void m_write_page (uint32_t page, uint8_t *buff);
 
 static uint8_t state = ST_ANY;
 static uint32_t firmware_len;
@@ -83,21 +83,22 @@ static bool m_send (aci_state_t *aci_state, uint8_t *buff, uint8_t buff_len)
 }
 
 /* Write the contents of buf to the given flash page */
-static void m_write_page (uint32_t page, uint8_t *buf)
+static void m_write_page (uint32_t page, uint8_t *buff)
 {
   uint16_t i;
+  uint16_t word;
 
   /* Erase flash page, then wait while the memory is written */
   boot_page_erase (page);
   boot_spm_busy_wait ();
 
-  for (i=0; i<SPM_PAGESIZE; i+=2)
+  for (i = 0; i < SPM_PAGESIZE; i += 2)
   {
       /* Set up little-endian word. */
-      uint16_t w = *buf++;
-      w += (*buf++) << 8;
+      word = *buff++;
+      word += (*buff++) << 8;
 
-      boot_page_fill (page + i, w);
+      boot_page_fill (page + i, word);
   }
 
   /* Store buffer in flash page, then wait while the memory is written */
