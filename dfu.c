@@ -103,19 +103,25 @@ static void m_write_page (uint32_t page, uint8_t *buf)
   boot_rww_enable ();
 }
 
-/* State transition functions */
+/*
+ * State transition functions
+ */
 
-/* Initialize the state machine */
+/* Transition to the init packet receive state */
 static uint8_t dfu_begin_init (aci_state_t *aci_state, aci_evt_t *aci_evt)
 {
   return ST_RX_INIT_PKT;
 }
 
+/* Transition to the data packet receive state */
 static uint8_t dfu_begin_transfer (aci_state_t *aci_state, aci_evt_t *aci_evt)
 {
   return ST_RX_DATA_PKT;
 }
 
+/* Receive a firmware packet, and write it to flash. Also sends receipt
+ * notifications if needed
+ */
 static uint8_t dfu_data_pkt_handle (aci_state_t *aci_state, aci_evt_t *aci_evt)
 {
   static uint8_t response[] = {OP_CODE_RESPONSE,
@@ -126,7 +132,9 @@ static uint8_t dfu_data_pkt_handle (aci_state_t *aci_state, aci_evt_t *aci_evt)
   uint8_t bytes_received = aci_evt->len-2;
   uint8_t i;
 
-  /* Write received data to page buffer. When the buffer is full, write it to flash. */
+  /* Write received data to page buffer. When the buffer is full, write it to
+   * flash.
+   */
   data_received = (aci_evt_params_data_received_t *) &(aci_evt->params);
   for (i = 0; i < bytes_received; i++)
   {
@@ -166,6 +174,7 @@ static uint8_t dfu_data_pkt_handle (aci_state_t *aci_state, aci_evt_t *aci_evt)
   return ST_RX_DATA_PKT;
 }
 
+/* Receive and store the firmware image size */
 static uint8_t dfu_image_size_set (aci_state_t *aci_state, aci_evt_t *aci_evt)
 {
   const uint8_t pipe = PIPE_DEVICE_FIRMWARE_UPDATE_BLE_SERVICE_DFU_CONTROL_POINT_TX;
@@ -176,9 +185,11 @@ static uint8_t dfu_image_size_set (aci_state_t *aci_state, aci_evt_t *aci_evt)
   /* There are two paths into the bootloader. We either got here because there
    * is no application, or we jumped from application. If we jumped from
    * application, we checked that available credit == total credit before the
-   * jump, so simply setting it that way is safe
+   * jump, so simply setting it that way is safe.  Further, as we never
+   * received an event from the nRF8001 with the pipe statuses, we have to
+   * assume that the Control Point TX pipe is open. At this point, that is
+   * safe.
    */
-
   aci_state->pipes_open_bitmap[byte_idx] |= (1 << (pipe % 8));
   aci_state->pipes_closed_bitmap[byte_idx] &= ~(1 << (pipe % 8));
   aci_state->data_credit_available = 2;
@@ -215,13 +226,15 @@ static uint8_t dfu_reset  (aci_state_t *aci_state, aci_evt_t *aci_evt)
   return ST_ANY;
 }
 
-
-
+/* Process incoming init data. This is not yet implemented, as the Master
+ * Control Panel application sends no data.
+ */
 static uint8_t dfu_init_pkt_handle (aci_state_t *aci_state, aci_evt_t *aci_evt)
 {
   return ST_RX_INIT_PKT;
 }
 
+/* Validate the received firmware image, and transmit the result */
 static uint8_t dfu_image_validate (aci_state_t *aci_state, aci_evt_t *aci_evt)
 {
   uint8_t ret;
@@ -249,6 +262,7 @@ static uint8_t dfu_image_validate (aci_state_t *aci_state, aci_evt_t *aci_evt)
   return ret;
 }
 
+/* Update the interval between receipt notifications */
 static uint8_t dfu_notification_set (aci_state_t *aci_state,
     aci_evt_t *aci_evt)
 {
@@ -259,6 +273,9 @@ static uint8_t dfu_notification_set (aci_state_t *aci_state,
   return state;
 }
 
+/* Table of states, events we should react to in those states, and the
+ * transition function that should be called for each defined state/event pair
+ */
 dfu_transition_t trans[] = {
   { ST_RDY,         OP_CODE_RECEIVE_INIT,            &dfu_begin_init       },
   { ST_IDLE,        DFU_PACKET_RX,                   &dfu_image_size_set   },
@@ -274,11 +291,13 @@ dfu_transition_t trans[] = {
 
 #define TRANS_COUNT (sizeof(trans)/sizeof(*trans))
 
+/* Initialize the state machine */
 void dfu_init (void)
 {
   state = ST_IDLE;
 }
 
+/* Update the state machine according to the event in aci_evt */
 void dfu_update (aci_state_t *aci_state, aci_evt_t *aci_evt)
 {
   const aci_rx_data_t *rx_data = &(aci_evt->params.data_received.rx_data);
