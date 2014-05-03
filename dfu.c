@@ -222,7 +222,7 @@ static uint8_t dfu_reset  (aci_state_t *aci_state, aci_evt_t *aci_evt)
 
   while(1) {
     if (lib_aci_event_get(aci_state, &aci_data) &&
-       (ACI_EVT_DISCONNECTED == aci_evt->evt_opcode)) {
+       (aci_evt->evt_opcode == ACI_EVT_DISCONNECTED)) {
       /* Set watchdog to shortest interval and spin until reset */
       WDTCSR = _BV(WDCE) | _BV(WDE);
       WDTCSR = _BV(WDE);
@@ -309,19 +309,17 @@ void dfu_update (aci_state_t *aci_state, aci_evt_t *aci_evt)
 {
   const aci_rx_data_t *rx_data = &(aci_evt->params.data_received.rx_data);
   uint8_t event = EV_ANY;
+  uint8_t pipe;
   uint8_t i;
 
+  pipe = rx_data->pipe_number;
+
   /* Incoming data packet */
-  if (PIPE_DEVICE_FIRMWARE_UPDATE_BLE_SERVICE_DFU_PACKET_RX ==
-      rx_data->pipe_number)
-  {
+  if (pipe == PIPE_DEVICE_FIRMWARE_UPDATE_BLE_SERVICE_DFU_PACKET_RX) {
     event = DFU_PACKET_RX;
   }
   /* Incoming control point */
-  else if (
-      PIPE_DEVICE_FIRMWARE_UPDATE_BLE_SERVICE_DFU_CONTROL_POINT_RX_ACK_AUTO ==
-      rx_data->pipe_number)
-  {
+  else if (pipe == PIPE_DEVICE_FIRMWARE_UPDATE_BLE_SERVICE_DFU_CONTROL_POINT_RX_ACK_AUTO) {
     event = rx_data->aci_data[0];
   }
 

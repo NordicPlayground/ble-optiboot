@@ -794,8 +794,8 @@ static uint8_t ble_update_firmware (void)
 {
   hal_aci_evt_t aci_data;
   aci_evt_t *aci_evt;
-
-  uint8_t dfu_mode = 0;
+  uint8_t dfu_mode;
+  uint8_t pipe;
 
   if (!lib_aci_event_get(&aci_state, &aci_data)) {
     return 0;
@@ -804,12 +804,13 @@ static uint8_t ble_update_firmware (void)
   watchdogReset();
 
   aci_evt = &(aci_data.evt);
+  dfu_mode = 0;
 
   switch(aci_evt->evt_opcode) {
   case ACI_EVT_DEVICE_STARTED:
     aci_state.data_credit_total =
       aci_evt->params.device_started.credit_available;
-    if (ACI_DEVICE_STANDBY == aci_evt->params.device_started.device_mode) {
+    if (aci_evt->params.device_started.device_mode == ACI_DEVICE_STANDBY) {
       if (aci_evt->params.device_started.hw_error) {
           /* Magic number used to make sure the HW error event
            * is handled correctly. */
@@ -832,16 +833,17 @@ static uint8_t ble_update_firmware (void)
     break;
 
   case ACI_EVT_PIPE_ERROR:
-    if (ACI_STATUS_ERROR_PEER_ATT_ERROR !=
-      aci_evt->params.pipe_error.error_code) {
+    if (aci_evt->params.pipe_error.error_code !=
+        ACI_STATUS_ERROR_PEER_ATT_ERROR) {
       aci_state.data_credit_available++;
     }
     break;
 
   case ACI_EVT_DATA_RECEIVED:
     /* If data received is on either of the DFU pipes, return success */
-    if (PIPE_DEVICE_FIRMWARE_UPDATE_BLE_SERVICE_DFU_PACKET_RX == aci_evt->params.data_received.rx_data.pipe_number ||
-        PIPE_DEVICE_FIRMWARE_UPDATE_BLE_SERVICE_DFU_CONTROL_POINT_RX_ACK_AUTO == aci_evt->params.data_received.rx_data.pipe_number) {
+    pipe = aci_evt->params.data_received.rx_data.pipe_number;
+    if (pipe == PIPE_DEVICE_FIRMWARE_UPDATE_BLE_SERVICE_DFU_PACKET_RX ||
+        pipe == PIPE_DEVICE_FIRMWARE_UPDATE_BLE_SERVICE_DFU_CONTROL_POINT_RX_ACK_AUTO) {
       dfu_mode = 1;
     }
 
