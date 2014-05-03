@@ -45,13 +45,14 @@ enum
 /* Send receive notification to the BLE controller */
 static void m_notify (aci_state_t *aci_state)
 {
-  uint8_t response[6] = {OP_CODE_PKT_RCPT_NOTIF, 0};
-  response[2] = (uint8_t) total_bytes_received;
-  response[3] = (uint8_t) (total_bytes_received >> 8);
-  response[4] = (uint8_t) (total_bytes_received >> 16);
-  response[5] = (uint8_t) (total_bytes_received >> 24);
+  uint8_t response[] = {OP_CODE_PKT_RCPT_NOTIF,
+    0,
+    (uint8_t) total_bytes_received,
+    (uint8_t) (total_bytes_received >> 8),
+    (uint8_t) (total_bytes_received >> 16),
+    (uint8_t) (total_bytes_received >> 24)};
 
-  m_send (aci_state, response, 6);
+  m_send (aci_state, response, sizeof(response));
 }
 
 /* Transmit buffer_len number of bytes from buffer to the BLE controller */
@@ -117,7 +118,10 @@ static uint8_t dfu_begin_transfer (aci_state_t *aci_state, aci_evt_t *aci_evt)
 
 static uint8_t dfu_data_pkt_handle (aci_state_t *aci_state, aci_evt_t *aci_evt)
 {
-  static uint8_t response[] = {OP_CODE_RESPONSE, BLE_DFU_RECEIVE_APP_PROCEDURE, BLE_DFU_RESP_VAL_SUCCESS};
+  static uint8_t response[] = {OP_CODE_RESPONSE,
+     BLE_DFU_RECEIVE_APP_PROCEDURE,
+     BLE_DFU_RESP_VAL_SUCCESS};
+
   aci_evt_params_data_received_t *data_received;
   uint8_t bytes_received = aci_evt->len-2;
   uint8_t i;
@@ -156,7 +160,7 @@ static uint8_t dfu_data_pkt_handle (aci_state_t *aci_state, aci_evt_t *aci_evt)
     m_write_page (page++, page_buffer);
 
     /* Send firmware received notification */
-    m_send (aci_state, response, 3);
+    m_send (aci_state, response, sizeof(response));
   }
 
   return ST_RX_DATA_PKT;
@@ -166,7 +170,7 @@ static uint8_t dfu_image_size_set (aci_state_t *aci_state, aci_evt_t *aci_evt)
 {
   const uint8_t pipe = PIPE_DEVICE_FIRMWARE_UPDATE_BLE_SERVICE_DFU_CONTROL_POINT_TX;
   const uint8_t byte_idx = pipe / 8;
-  static uint8_t response[3] = {OP_CODE_RESPONSE, BLE_DFU_START_PROCEDURE,
+  static uint8_t response[] = {OP_CODE_RESPONSE, BLE_DFU_START_PROCEDURE,
     BLE_DFU_RESP_VAL_SUCCESS};
 
   /* There are two paths into the bootloader. We either got here because there
@@ -186,7 +190,7 @@ static uint8_t dfu_image_size_set (aci_state_t *aci_state, aci_evt_t *aci_evt)
     (uint32_t)aci_evt->params.data_received.rx_data.aci_data[0];
 
   /* Write response */
-  m_send (aci_state, response, 3);
+  m_send (aci_state, response, sizeof(response));
 
   return ST_RDY;
 }
@@ -221,14 +225,15 @@ static uint8_t dfu_init_pkt_handle (aci_state_t *aci_state, aci_evt_t *aci_evt)
 static uint8_t dfu_image_validate (aci_state_t *aci_state, aci_evt_t *aci_evt)
 {
   uint8_t ret;
-  uint8_t response[3] = {OP_CODE_RESPONSE, BLE_DFU_VALIDATE_PROCEDURE};
+  uint8_t response[] = {OP_CODE_RESPONSE,
+    BLE_DFU_VALIDATE_PROCEDURE,
+    BLE_DFU_RESP_VAL_SUCCESS};
 
   /* TODO: Implement CRC validation */
   if (total_bytes_received == firmware_len)
   {
     /* Completed successfully */
-    response[2] = BLE_DFU_RESP_VAL_SUCCESS;
-    m_send(aci_state, response, 3);
+    m_send(aci_state, response, sizeof(response));
 
     ret = ST_FW_VALID;
   }
@@ -236,7 +241,7 @@ static uint8_t dfu_image_validate (aci_state_t *aci_state, aci_evt_t *aci_evt)
   {
     /* CRC error */
     response[2] = BLE_DFU_RESP_VAL_CRC_ERROR;
-    m_send(aci_state, response, 3);
+    m_send(aci_state, response, sizeof(response));
 
     ret = ST_FW_INVALID;
   }
