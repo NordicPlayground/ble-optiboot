@@ -58,19 +58,25 @@ static void m_notify (aci_state_t *aci_state)
 /* Transmit buffer_len number of bytes from buffer to the BLE controller */
 static bool m_send (aci_state_t *aci_state, uint8_t *buff, uint8_t buff_len)
 {
-  bool status = false;
+  bool status;
 
-  if (lib_aci_is_pipe_available (aci_state,
-      PIPE_DEVICE_FIRMWARE_UPDATE_BLE_SERVICE_DFU_CONTROL_POINT_TX) &&
-      (aci_state->data_credit_available > 0))
+  if (!lib_aci_is_pipe_available (aci_state,
+      PIPE_DEVICE_FIRMWARE_UPDATE_BLE_SERVICE_DFU_CONTROL_POINT_TX)) {
+    return false;
+  }
+
+  if (aci_state->data_credit_available == 0)
   {
-    status = lib_aci_send_data(
+    return false;
+  }
+
+  status = lib_aci_send_data(
         PIPE_DEVICE_FIRMWARE_UPDATE_BLE_SERVICE_DFU_CONTROL_POINT_TX, buff,
         buff_len);
-    if (status)
-    {
-      aci_state->data_credit_available--;
-    }
+
+  if (status)
+  {
+    aci_state->data_credit_available--;
   }
 
   return status;
