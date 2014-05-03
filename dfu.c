@@ -20,7 +20,7 @@ static void m_write_page (uint32_t page, uint8_t *buf);
 
 static uint8_t state = ST_ANY;
 static uint32_t firmware_len;
-static uint16_t notify_every;
+static uint16_t notify_interval;
 static uint32_t total_bytes_received;
 static uint16_t packets_received;
 static uint32_t page;
@@ -136,8 +136,8 @@ static uint8_t dfu_data_pkt_handle (aci_state_t *aci_state, aci_evt_t *aci_evt)
     }
   }
 
-  /* Send notification for every "notification_every" number of packets */
-  if (0 == (++packets_received % notify_every))
+  /* Send notification for every "notify_interval" number of packets */
+  if (0 == (++packets_received % notify_interval))
   {
       m_notify (aci_state);
   }
@@ -247,7 +247,7 @@ static uint8_t dfu_image_validate (aci_state_t *aci_state, aci_evt_t *aci_evt)
 static uint8_t dfu_notification_set (aci_state_t *aci_state,
     aci_evt_t *aci_evt)
 {
-  notify_every =
+  notify_interval =
     (uint16_t)aci_evt->params.data_received.rx_data.aci_data[2] << 8 |
     (uint16_t)aci_evt->params.data_received.rx_data.aci_data[1];
 
