@@ -85,8 +85,6 @@ typedef struct
 } dfu_transition_t;
 
 void dfu_initialize (void);
-bool dfu_buffer_empty (aci_evt_t *aci_evt);
-uint8_t dfu_buffer_getch (aci_evt_t *aci_evt);
 void dfu_update (aci_state_t *aci_state, aci_evt_t *aci_evt);
 
 #endif /* DFU_H_ */
