@@ -50,7 +50,9 @@ void acil_encode_cmd_connect(uint8_t *buffer, aci_cmd_params_connect_t *p_aci_cm
  *
  *  @return         None
  */
+#if 0
 void acil_encode_cmd_bond(uint8_t *buffer, aci_cmd_params_bond_t *p_aci_cmd_params_bond);
+#endif
 
 /** @brief Encode the ACI message to disconnect
  *
@@ -80,7 +82,9 @@ void acil_encode_cmd_send_data(uint8_t *buffer, aci_cmd_params_send_data_t *p_ac
  *
  *  @return         None
  */
+#if 0
 void acil_encode_cmd_write_dynamic_data(uint8_t *buffer, uint8_t seq_no, uint8_t* dynamic_data, uint8_t dynamic_data_size);
+#endif
 
 /** @brief Encode the ACI message for Set Key Request command
  *
@@ -88,7 +92,9 @@ void acil_encode_cmd_write_dynamic_data(uint8_t *buffer, uint8_t seq_no, uint8_t
  *
  *  @return         None
  */
+#if 0
 void acil_encode_cmd_set_key(uint8_t *buffer, aci_cmd_params_set_key_t *p_aci_cmd_params_set_key);
+#endif
 
 /** @brief Encode the ACI message for Bond Security Request command
  *
@@ -96,6 +102,8 @@ void acil_encode_cmd_set_key(uint8_t *buffer, aci_cmd_params_set_key_t *p_aci_cm
  *
  *  @return         None
  */
+#if 0
 void acil_encode_cmd_bond_security_request(uint8_t *buffer);
+#endif
 
 #endif /* _acilib_IF_H_ */

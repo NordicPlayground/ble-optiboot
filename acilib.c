@@ -62,6 +62,7 @@ void acil_encode_cmd_connect(uint8_t *buffer,
     (uint8_t)(p_aci_cmd_params_connect->adv_interval);
 }
 
+#if 0
 void acil_encode_cmd_bond(uint8_t *buffer,
     aci_cmd_params_bond_t *p_aci_cmd_params_bond)
 {
@@ -82,6 +83,7 @@ void acil_encode_cmd_bond(uint8_t *buffer,
       OFFSET_ACI_CMD_PARAMS_BOND_T_ADV_INTERVAL_LSB) =
     (uint8_t)(p_aci_cmd_params_bond->adv_interval);
 }
+#endif
 
 void acil_encode_cmd_disconnect(uint8_t *buffer,
     aci_cmd_params_disconnect_t *p_aci_cmd_params_disconnect)
@@ -112,6 +114,7 @@ void acil_encode_cmd_send_data(uint8_t *buffer,
       &(p_aci_cmd_params_send_data_t->tx_data.aci_data[0]), data_size);
 }
 
+#if 0
 void acil_encode_cmd_write_dynamic_data(uint8_t *buffer, uint8_t seq_no,
     uint8_t* dynamic_data, uint8_t dynamic_data_size)
 {
@@ -127,13 +130,17 @@ void acil_encode_cmd_write_dynamic_data(uint8_t *buffer, uint8_t seq_no,
         OFFSET_ACI_CMD_PARAMS_WRITE_DYNAMIC_DATA_T_DYNAMIC_DATA), dynamic_data,
       dynamic_data_size);
 }
+#endif
 
+#if 0
 void acil_encode_cmd_bond_security_request(uint8_t *buffer)
 {
   *(buffer + OFFSET_ACI_CMD_T_LEN) = 1;
   *(buffer + OFFSET_ACI_CMD_T_CMD_OPCODE) = ACI_CMD_BOND_SECURITY_REQUEST;
 }
+#endif
 
+#if 0
 void acil_encode_cmd_set_key(uint8_t *buffer,
     aci_cmd_params_set_key_t *p_aci_cmd_params_set_key)
 {
@@ -168,3 +175,4 @@ void acil_encode_cmd_set_key(uint8_t *buffer,
         OFFSET_ACI_CMD_PARAMS_SET_KEY_T_PASSKEY),
       (uint8_t *)&(p_aci_cmd_params_set_key->key), len-2);
 }
+#endif
