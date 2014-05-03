@@ -10,14 +10,12 @@ static uint8_t dfu_data_pkt_handle (aci_state_t *aci_state,
     aci_evt_t *aci_evt);
 static uint8_t dfu_init_pkt_handle (aci_state_t *aci_state,
     aci_evt_t *aci_evt);
-static uint8_t dfu_image_activate (aci_state_t *aci_state, aci_evt_t *aci_evt);
 static uint8_t dfu_image_size_set (aci_state_t *aci_state, aci_evt_t *aci_evt);
 static uint8_t dfu_image_validate (aci_state_t *aci_state, aci_evt_t *aci_evt);
 static uint8_t dfu_reset (aci_state_t *aci_state, aci_evt_t *aci_evt);
 
 static void m_notify (aci_state_t *aci_state);
 static bool m_send (aci_state_t *aci_state, uint8_t *buff, uint8_t buff_len);
-static void m_reset (void);
 static void m_write_page (uint32_t page, uint8_t *buf);
 
 static uint8_t state = ST_ANY;
@@ -54,16 +52,6 @@ static void m_notify (aci_state_t *aci_state)
   response[5] = (uint8_t) (total_bytes_received >> 24);
 
   m_send (aci_state, response, 6);
-}
-
-/* Sets the watchdog timer interval to its
- * minimum value and loops until reset
- */
-static void m_reset (void)
-{
-  WDTCSR = _BV(WDCE) | _BV(WDE);
-  WDTCSR = _BV(WDE);
-  while(1);
 }
 
 /* Transmit buffer_len number of bytes from buffer to the BLE controller */
@@ -203,7 +191,8 @@ static uint8_t dfu_image_size_set (aci_state_t *aci_state, aci_evt_t *aci_evt)
   return ST_RDY;
 }
 
-static uint8_t dfu_image_activate (aci_state_t *aci_state, aci_evt_t *aci_evt)
+/* Disconnect from the nRF8001 and do a reset */
+static uint8_t dfu_reset  (aci_state_t *aci_state, aci_evt_t *aci_evt)
 {
   hal_aci_evt_t aci_data;
 
@@ -212,20 +201,17 @@ static uint8_t dfu_image_activate (aci_state_t *aci_state, aci_evt_t *aci_evt)
   while(1) {
     if (lib_aci_event_get(aci_state, &aci_data) &&
        (ACI_EVT_DISCONNECTED == aci_evt->evt_opcode)) {
-        m_reset ();
+      /* Set watchdog to shortest interval and spin until reset */
+      WDTCSR = _BV(WDCE) | _BV(WDE);
+      WDTCSR = _BV(WDE);
+      while(1);
     }
   }
 
   return ST_ANY;
 }
 
-static uint8_t dfu_reset  (aci_state_t *aci_state, aci_evt_t *aci_evt)
-{
-  while(!lib_aci_disconnect(aci_state, ACI_REASON_TERMINATE));
-  m_reset ();
 
-  return ST_ANY;
-}
 
 static uint8_t dfu_init_pkt_handle (aci_state_t *aci_state, aci_evt_t *aci_evt)
 {
@@ -276,9 +262,9 @@ dfu_transition_t trans[] = {
   { ST_RX_INIT_PKT, OP_CODE_RECEIVE_FW,              &dfu_begin_transfer   },
   { ST_RX_DATA_PKT, DFU_PACKET_RX,                   &dfu_data_pkt_handle  },
   { ST_RX_DATA_PKT, OP_CODE_VALIDATE,                &dfu_image_validate   },
-  { ST_FW_VALID,    OP_CODE_ACTIVATE_N_RESET,        &dfu_image_activate   },
-  { ST_ANY,         OP_CODE_PKT_RCPT_NOTIF_REQ,      &dfu_notification_set },
-  { ST_ANY,         OP_CODE_SYS_RESET,               &dfu_reset            }
+  { ST_FW_VALID,    OP_CODE_ACTIVATE_N_RESET,        &dfu_reset            },
+  { ST_ANY,         OP_CODE_SYS_RESET,               &dfu_reset            },
+  { ST_ANY,         OP_CODE_PKT_RCPT_NOTIF_REQ,      &dfu_notification_set }
 };
 
 #define TRANS_COUNT (sizeof(trans)/sizeof(*trans))
