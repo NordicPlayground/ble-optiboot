@@ -313,13 +313,11 @@ void dfu_update (aci_state_t *aci_state, aci_evt_t *aci_evt)
    */
   for (i = 0; i < TRANS_COUNT; i++)
   {
-    if ((state == trans[i].st) || (ST_ANY == trans[i].st))
+    if (((state == trans[i].st) || (ST_ANY == trans[i].st)) &&
+        ((event == trans[i].ev) || (EV_ANY == trans[i].ev)))
     {
-      if ((event == trans[i].ev) || (EV_ANY == trans[i].ev))
-      {
-        state = (trans[i].fn)(aci_state, aci_evt);
-        break;
-      }
+      state = (trans[i].fn)(aci_state, aci_evt);
+      break;
     }
   }
 }
