@@ -734,8 +734,6 @@ static void uart_update_firmware (void)
       putch(SIGNATURE_2);
     }
     else if (ch == STK_LEAVE_PROGMODE) { /* 'Q' */
-      /* Adaboot no-wait mod  */
-      watchdogConfig(WATCHDOG_16MS);
       verifySpace();
     }
     else {
