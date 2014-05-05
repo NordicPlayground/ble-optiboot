@@ -13,10 +13,6 @@
 #define DFU_PACKET_RX       20
 #define EV_ANY              255
 
-#define PIPE_DEVICE_FIRMWARE_UPDATE_BLE_SERVICE_DFU_PACKET_RX                   8
-#define PIPE_DEVICE_FIRMWARE_UPDATE_BLE_SERVICE_DFU_CONTROL_POINT_TX            9
-#define PIPE_DEVICE_FIRMWARE_UPDATE_BLE_SERVICE_DFU_CONTROL_POINT_RX_ACK_AUTO   10
-
 /**@brief   DFU Event type.
  *
  * @details This enumeration contains the types of events that will be received

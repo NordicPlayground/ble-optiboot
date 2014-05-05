@@ -5,6 +5,7 @@
 #include "boot.h"
 #include "lib_aci.h"
 #include "dfu.h"
+#include "services.h"
 
 static uint8_t dfu_data_pkt_handle (aci_state_t *aci_state,
     aci_evt_t *aci_evt);
