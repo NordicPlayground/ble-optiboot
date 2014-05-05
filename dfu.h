@@ -2,12 +2,11 @@
 #define DFU_H_
 
 #define ST_IDLE             1
-#define ST_INIT_ERROR       2
-#define ST_RDY              3
-#define ST_RX_INIT_PKT      4
-#define ST_RX_DATA_PKT      5
-#define ST_FW_VALID         6
-#define ST_FW_INVALID       7
+#define ST_RDY              2
+#define ST_RX_INIT_PKT      3
+#define ST_RX_DATA_PKT      4
+#define ST_FW_VALID         5
+#define ST_FW_INVALID       6
 #define ST_ANY              255
 
 #define DFU_PACKET_RX       20
