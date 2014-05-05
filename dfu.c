@@ -1,8 +1,8 @@
 #include <string.h>
 #include <avr/io.h>
-#include <avr/boot.h>
 #include <util/delay.h>
 
+#include "boot.h"
 #include "lib_aci.h"
 #include "dfu.h"
 
@@ -16,14 +16,14 @@ static uint8_t dfu_reset (aci_state_t *aci_state, aci_evt_t *aci_evt);
 
 static void m_notify (aci_state_t *aci_state);
 static bool m_send (aci_state_t *aci_state, uint8_t *buff, uint8_t buff_len);
-static void m_write_page (uint32_t page, uint8_t *buff);
+static void m_write_page (uint16_t page, uint8_t *buff);
 
 static uint8_t state = ST_ANY;
 static uint32_t firmware_len;
 static uint16_t notify_interval;
 static uint32_t total_bytes_received;
 static uint16_t packets_received;
-static uint32_t page;
+static uint16_t page;
 static uint8_t page_buffer[SPM_PAGESIZE];
 static uint8_t page_index;
 
@@ -83,13 +83,13 @@ static bool m_send (aci_state_t *aci_state, uint8_t *buff, uint8_t buff_len)
 }
 
 /* Write the contents of buf to the given flash page */
-static void m_write_page (uint32_t page, uint8_t *buff)
+static void m_write_page (uint16_t page, uint8_t *buff)
 {
   uint16_t i;
   uint16_t word;
 
   /* Erase flash page, then wait while the memory is written */
-  boot_page_erase (page);
+  __boot_page_erase_short (page);
   boot_spm_busy_wait ();
 
   for (i = 0; i < SPM_PAGESIZE; i += 2)
@@ -98,11 +98,11 @@ static void m_write_page (uint32_t page, uint8_t *buff)
       word = *buff++;
       word += (*buff++) << 8;
 
-      boot_page_fill (page + i, word);
+      __boot_page_fill_short (page + i, word);
   }
 
   /* Store buffer in flash page, then wait while the memory is written */
-  boot_page_write (page);
+  __boot_page_write_short (page);
   boot_spm_busy_wait();
 
   /* Reenable RWW-section again. We need this if we want to jump back
