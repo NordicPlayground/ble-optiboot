@@ -95,12 +95,12 @@ static void m_aci_event_check(void)
 
 static inline void m_aci_reqn_disable (void)
 {
-  PORTB |= _BV(PB2);
+  PORTB |= pins.reqn_pin_mask;
 }
 
 static inline void m_aci_reqn_enable (void)
 {
-  PORTB &= ~_BV(PB2);
+  PORTB &= ~pins.reqn_pin_mask;
 }
 
 static void m_aci_q_flush(void)
