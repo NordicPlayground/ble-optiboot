@@ -156,14 +156,19 @@ static void m_spi_init (void)
 {
   /* Configure the IO lines */
   /* Set RDYN as input with pull-up */
+  //DDRD &= ~pins.rdyn_pin_mask;
+  //PORTD |= pins.rdyn_pin_mask;
+  //
   DDRD &= ~_BV(PD3);
   PORTD |= _BV(PD3);
 
   /* Set REQN, MOSI & SCK as output */
-  DDRB |= _BV(PB2) | _BV(PB3) | _BV(PB5);
+  DDRB |= pins.reqn_pin_mask;
+  DDRB |= pins.mosi_pin_mask;
+  DDRB |= pins.sck_pin_mask;
 
   /* Set MISO as input */
-  DDRB &= ~_BV(PB4);
+  DDRB &= ~pins.miso_pin_mask;
 
   /* Configure SPI registers */
   SPCR |= _BV(SPE) | _BV(DORD) | _BV(MSTR) | _BV(SPI2X) | _BV(SPR0);
@@ -249,17 +254,17 @@ bool hal_aci_tl_event_get(hal_aci_data_t *p_aci_data)
 
 void hal_aci_tl_pin_reset(void)
 {
-  DDRD |= _BV(4);
+  pins.reset_port |= pins.reset_pin_mask;
 
-  PORTD |= _BV(4);
-  PORTD &= ~_BV(4);
-  PORTD |= _BV(4);
+  PORTD |= pins.reset_pin_mask;
+  PORTD &= ~pins.reset_pin_mask;
+  PORTD |= pins.reset_pin_mask;
 
   /* Set the nRF8001 to a known state as required by the data sheet */
-  PORTB |= _BV(PB2);  /* REQN */
-  PORTB &= ~_BV(PB4); /* MISO */
-  PORTB &= ~_BV(PB3); /* MOSI */
-  PORTB &= ~_BV(PB5); /* SCK */
+  PORTB |= pins.reqn_pin_mask;
+  PORTB &= ~pins.miso_pin_mask;
+  PORTB &= ~pins.mosi_pin_mask;
+  PORTB &= ~pins.sck_pin_mask;
 
   /* Wait for the nRF8001 to get hold of its lines as the lines float for a few ms after reset */
   _delay_ms(30);
