@@ -87,14 +87,7 @@ static void m_aci_event_check(void)
   /* Check if we received data */
   if (received_data.buffer[0] > 0)
   {
-    if (!aci_queue_enqueue(&aci_rx_q, &received_data))
-    {
-      /* Receive Buffer full.
-         Should never happen.
-         Spin in a while loop.
-      */
-      while(1);
-    }
+    aci_queue_enqueue(&aci_rx_q, &received_data);
   }
 
   return;
