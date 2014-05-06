@@ -20,11 +20,13 @@
  */
 
 #include <stdbool.h>
+#include <avr/eeprom.h>
 #include <avr/io.h>
 #include <util/delay.h>
 
 #include "hal_aci_tl.h"
 #include "aci_queue.h"
+#include "eeprom_data.h"
 
 static void m_aci_event_check (void);
 static inline void m_aci_reqn_disable (void);
