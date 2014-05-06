@@ -2,7 +2,8 @@
 #include <avr/io.h>
 #include <util/delay.h>
 
-#include "boot.h"
+#include "../boot.h"
+
 #include "lib_aci.h"
 #include "dfu.h"
 #include "services.h"

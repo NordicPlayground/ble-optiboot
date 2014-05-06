@@ -216,11 +216,12 @@ asm("  .section .version\n"
  * This saves cycles and program memory.
  */
 #include "boot.h"
-#include "services.h"
-#include "lib_aci.h"
-#include "aci_evts.h"
-#include "dfu.h"
 
+/* Bluetooth files */
+#include "BLE/services.h"
+#include "BLE/lib_aci.h"
+#include "BLE/aci_evts.h"
+#include "BLE/dfu.h"
 
 /* We don't use <avr/wdt.h> as those routines have interrupt overhead we don't
  * need.
