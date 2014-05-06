@@ -38,6 +38,7 @@ static inline uint8_t m_spi_readwrite (const uint8_t aci_byte);
 
 static aci_queue_t    aci_tx_q;
 static aci_queue_t    aci_rx_q;
+static eeprom_data_t  pins;
 
 /*
   Checks the RDYN line and runs the SPI transfer if required.
@@ -184,9 +185,24 @@ static inline uint8_t m_spi_readwrite(const uint8_t aci_byte)
 
 void hal_aci_tl_init(void)
 {
+  uint8_t i;
+  uint8_t *addr;
+  uint8_t n_meta;
+  uint8_t *p = (uint8_t *) &pins;
+
   /* Initialize the ACI Command queue. */
   aci_queue_init(&aci_tx_q);
   aci_queue_init(&aci_rx_q);
+
+  /* Read EEPROM data and put it in memory */
+  addr = 0;
+  n_meta = eeprom_read_byte (addr);
+
+  addr += n_meta;
+  for (i = 0; i < EEPROM_NUM_BYTES; i++) {
+    *(p++) = eeprom_read_byte (addr++);
+  }
+
   m_spi_init ();
 }
 
