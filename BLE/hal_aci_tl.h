@@ -64,18 +64,25 @@ typedef struct {
 
 ACI_ASSERT_SIZE(hal_aci_data_t, HAL_ACI_MAX_LENGTH + 2);
 
-/* Datatype for ACI pins and interface (polling/interrupt) */
+/** Datatype for ACI pins and interface (polling/interrupt)*/
 typedef struct aci_pins_t
 {
-  uint8_t board_name;
-  uint8_t reqn_pin;
-  uint8_t rdyn_pin;
-  uint8_t mosi_pin;
-  uint8_t miso_pin;
-  uint8_t sck_pin;
-  uint8_t spi_clock_divider;
-  uint8_t reset_pin;
-  uint8_t active_pin;
+  uint8_t board_name;             //Optional : Use BOARD_DEFAULT if you do not know. See boards.h
+  uint8_t reqn_pin;				//Required
+  uint8_t rdyn_pin;				//Required
+  uint8_t mosi_pin;				//Required
+  uint8_t miso_pin;				//Required
+  uint8_t sck_pin;				//Required
+
+  uint8_t spi_clock_divider;      //Required : Clock divider on the SPI clock : nRF8001 supports a maximum clock of 3MHz
+
+  uint8_t reset_pin;				//Recommended but optional - Set it to UNUSED when not connected
+  uint8_t active_pin;				//Optional - Set it to UNUSED when not connected
+  uint8_t optional_chip_sel_pin;  //Optional - Used only when the reqn line is required to be separate from the SPI chip select. Eg. Arduino DUE
+
+  bool interface_is_interrupt;	//Required - true = Uses interrupt on RDYN pin. false - Uses polling on RDYN pin
+
+  uint8_t	interrupt_number;		//Required when using interrupts, otherwise ignored
 } aci_pins_t;
 
 /** @brief ACI Transport Layer initialization.

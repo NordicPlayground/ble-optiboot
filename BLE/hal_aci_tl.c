@@ -28,6 +28,8 @@
 #include "aci_queue.h"
 #include "eeprom_data.h"
 
+#define NUM_PIPES 3
+
 static void m_aci_event_check (void);
 static inline void m_aci_reqn_disable (void);
 static inline void m_aci_reqn_enable (void);
@@ -184,21 +186,29 @@ static inline uint8_t m_spi_readwrite(const uint8_t aci_byte)
 void hal_aci_tl_init(void)
 {
   uint8_t i;
-  uint8_t *addr;
-  uint8_t n_meta;
-  uint8_t *p = (uint8_t *) &pins;
+  uint8_t *addr = (uint8_t *) 2;
+  aci_pins_t pins;
+  aci_pins_t *p = &pins;
+  uint8_t credit_total;
+  uint8_t credit_available;
+  uint8_t pipes[NUM_PIPES];
+
 
   /* Initialize the ACI Command queue. */
   aci_queue_init(&aci_tx_q);
   aci_queue_init(&aci_rx_q);
 
-  /* Read EEPROM data and put it in memory */
-  addr = 0;
-  n_meta = eeprom_read_byte (addr);
+  /* Read aci_pins_t put it in memory */
+  for (i = 0; i < sizeof(aci_pins_t); i++) {
+    (*(uint8_t *) p++) = eeprom_read_byte (addr++);
+  }
 
-  addr += n_meta;
-  for (i = 0; i < EEPROM_NUM_BYTES; i++) {
-    *(p++) = eeprom_read_byte (addr++);
+  credit_total = eeprom_read_byte (addr++);
+  credit_available = eeprom_read_byte (addr++);
+
+  /* Read aci_pins_t put it in memory */
+  for (i = 0; i < NUM_PIPES; i++) {
+    pipes[i] = eeprom_read_byte (addr++);
   }
 
   m_spi_init ();
