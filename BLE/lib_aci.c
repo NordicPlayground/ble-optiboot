@@ -44,7 +44,6 @@ Global additionally used used in aci_setup
 */
 hal_aci_data_t  msg_to_send;
 
-
 static services_pipe_type_mapping_t * p_services_pipe_type_map;
 static hal_aci_data_t *               p_setup_msgs;
 
@@ -189,6 +188,11 @@ bool lib_aci_event_get(aci_state_t *aci_stat, hal_aci_evt_t *p_aci_evt_data)
     }
   }
   return status;
+}
+
+bool lib_aci_ready(void)
+{
+  return hal_aci_tl_ready ();
 }
 
 void lib_aci_pin_reset(void)
