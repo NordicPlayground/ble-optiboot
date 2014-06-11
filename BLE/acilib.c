@@ -62,29 +62,6 @@ void acil_encode_cmd_connect(uint8_t *buffer,
     (uint8_t)(p_aci_cmd_params_connect->adv_interval);
 }
 
-#if 0
-void acil_encode_cmd_bond(uint8_t *buffer,
-    aci_cmd_params_bond_t *p_aci_cmd_params_bond)
-{
-  *(buffer + OFFSET_ACI_CMD_T_LEN) = MSG_BOND_LEN;
-  *(buffer + OFFSET_ACI_CMD_T_CMD_OPCODE) = ACI_CMD_BOND;
-
-  *(buffer + OFFSET_ACI_CMD_T_BOND + OFFSET_ACI_CMD_PARAMS_BOND_T_TIMEOUT_MSB)
-    = (uint8_t)(p_aci_cmd_params_bond->timeout >> 8);
-
-  *(buffer + OFFSET_ACI_CMD_T_BOND + OFFSET_ACI_CMD_PARAMS_BOND_T_TIMEOUT_LSB)
-    = (uint8_t)(p_aci_cmd_params_bond->timeout);
-
-  *(buffer + OFFSET_ACI_CMD_T_BOND +
-      OFFSET_ACI_CMD_PARAMS_BOND_T_ADV_INTERVAL_MSB) =
-    (uint8_t)(p_aci_cmd_params_bond->adv_interval >> 8);
-
-  *(buffer + OFFSET_ACI_CMD_T_BOND +
-      OFFSET_ACI_CMD_PARAMS_BOND_T_ADV_INTERVAL_LSB) =
-    (uint8_t)(p_aci_cmd_params_bond->adv_interval);
-}
-#endif
-
 void acil_encode_cmd_disconnect(uint8_t *buffer,
     aci_cmd_params_disconnect_t *p_aci_cmd_params_disconnect)
 {
