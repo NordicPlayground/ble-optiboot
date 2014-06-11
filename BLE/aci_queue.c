@@ -31,14 +31,15 @@
 
 void aci_queue_init(aci_queue_t *aci_q)
 {
-  uint8_t loop;
+  uint8_t i;
 
   aci_q->head = 0;
   aci_q->tail = 0;
-  for(loop=0; loop<ACI_QUEUE_SIZE; loop++)
+
+  for(i=0; i<ACI_QUEUE_SIZE; i++)
   {
-    aci_q->aci_data[loop].buffer[0] = 0x00;
-    aci_q->aci_data[loop].buffer[1] = 0x00;
+    aci_q->aci_data[i].buffer[0] = 0x00;
+    aci_q->aci_data[i].buffer[1] = 0x00;
   }
 }
 
@@ -100,16 +101,4 @@ bool aci_queue_is_full(aci_queue_t *aci_q)
   }
 
   return state;
-}
-
-bool aci_queue_peek(aci_queue_t *aci_q, hal_aci_data_t *p_data)
-{
-  if (aci_queue_is_empty(aci_q))
-  {
-    return false;
-  }
-
-  memcpy((uint8_t *)p_data, (uint8_t *)&(aci_q->aci_data[aci_q->head]), sizeof(hal_aci_data_t));
-
-  return true;
 }

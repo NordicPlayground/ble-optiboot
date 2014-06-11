@@ -60,7 +60,6 @@ bool aci_queue_dequeue(aci_queue_t *aci_q, hal_aci_data_t *p_data);
 bool aci_queue_enqueue(aci_queue_t *aci_q, hal_aci_data_t *p_data);
 bool aci_queue_is_empty(aci_queue_t *aci_q);
 bool aci_queue_is_full(aci_queue_t *aci_q);
-bool aci_queue_peek(aci_queue_t *aci_q, hal_aci_data_t *p_data);
 
 #endif /* ACI_QUEUE_H__ */
 /** @} */
