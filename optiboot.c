@@ -509,10 +509,6 @@ static void hardware_init (void)
   SP=RAMEND;  /* This is done by hardware reset */
 #endif
 
-  /* Config test line */
-  DDRD |= _BV(PD6);
-  PORTD &= ~_BV(PD6);
-
 #if LED_START_FLASHES > 0
   /* Set up Timer 1 for timeout counter */
   TCCR1B = _BV(CS12) | _BV(CS10); /* div 1024 */
