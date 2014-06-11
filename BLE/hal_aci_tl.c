@@ -27,20 +27,22 @@
 #include "hal_aci_tl.h"
 #include "aci_queue.h"
 #include "eeprom_data.h"
+#include "pins_arduino.h"
 
 #define NUM_PIPES 3
 
 static void m_aci_event_check (void);
 static inline void m_aci_reqn_disable (void);
 static inline void m_aci_reqn_enable (void);
-static inline void m_aci_q_flush (void);
 static bool m_aci_spi_transfer (hal_aci_data_t * data_to_send, hal_aci_data_t * received_data);
 static void m_spi_init (void);
 static inline uint8_t m_spi_readwrite (const uint8_t aci_byte);
 
 static aci_queue_t    aci_tx_q;
 static aci_queue_t    aci_rx_q;
-static eeprom_data_t  pins;
+static aci_pins_t     pins;
+static uint8_t pipes[NUM_PIPES];
+static uint8_t credit_total;
 
 /*
   Checks the RDYN line and runs the SPI transfer if required.
@@ -49,6 +51,8 @@ static void m_aci_event_check(void)
 {
   hal_aci_data_t data_to_send;
   hal_aci_data_t received_data;
+
+  volatile uint8_t *rdyn_in = port_to_input (pin_to_port (pins.rdyn_pin));
 
   /* No room to store incoming messages */
   if (aci_queue_is_full(&aci_rx_q))
@@ -59,7 +63,7 @@ static void m_aci_event_check(void)
   /* If the ready line is disabled and we have pending messages outgoing we
    * enable the request line
   */
-  if (PIND & _BV(PD3))
+  if (*rdyn_in & _BV(pins.rdyn_pin))
   {
     if (!aci_queue_is_empty(&aci_tx_q))
     {
@@ -80,7 +84,9 @@ static void m_aci_event_check(void)
   /* Receive and/or transmit data */
   m_aci_spi_transfer(&data_to_send, &received_data);
 
-  /* If there are messages to transmit, and we can store the reply, we request a new transfer */
+  /* If there are messages to transmit, and we can store the reply,
+   * we request a new transfer
+  */
   if (!aci_queue_is_full(&aci_rx_q) && !aci_queue_is_empty(&aci_tx_q))
   {
     m_aci_reqn_enable();
@@ -97,19 +103,18 @@ static void m_aci_event_check(void)
 
 static inline void m_aci_reqn_disable (void)
 {
-  PORTB |= pins.reqn_pin_mask;
+  uint8_t reqn_port = pin_to_port (pins.reqn_pin);
+  volatile uint8_t *reqn_out = port_to_output (reqn_port);
+
+  *reqn_out |= _BV(pins.reqn_pin);
 }
 
 static inline void m_aci_reqn_enable (void)
 {
-  PORTB &= ~pins.reqn_pin_mask;
-}
+  uint8_t reqn_port = pin_to_port (pins.reqn_pin);
+  volatile uint8_t *reqn_out = port_to_output (reqn_port);
 
-static void m_aci_q_flush(void)
-{
-  /* Re-initialize aci cmd queue and aci event queue to flush them */
-  aci_queue_init(&aci_tx_q);
-  aci_queue_init(&aci_rx_q);
+  *reqn_out &= ~_BV(pins.reqn_pin);
 }
 
 static bool m_aci_spi_transfer (hal_aci_data_t * data_to_send, hal_aci_data_t * received_data)
@@ -156,21 +161,20 @@ static bool m_aci_spi_transfer (hal_aci_data_t * data_to_send, hal_aci_data_t * 
 
 static void m_spi_init (void)
 {
-  /* Configure the IO lines */
-  /* Set RDYN as input with pull-up */
-  //DDRD &= ~pins.rdyn_pin_mask;
-  //PORTD |= pins.rdyn_pin_mask;
-  //
-  DDRD &= ~_BV(PD3);
-  PORTD |= _BV(PD3);
+  uint8_t rdyn_port = pin_to_port (pins.rdyn_pin);
 
-  /* Set REQN, MOSI & SCK as output */
-  DDRB |= pins.reqn_pin_mask;
-  DDRB |= pins.mosi_pin_mask;
-  DDRB |= pins.sck_pin_mask;
+  volatile uint8_t *miso_mode = port_to_mode (pin_to_port (pins.miso_pin));
+  volatile uint8_t *rdyn_mode = port_to_mode (rdyn_port);
+  volatile uint8_t *rdyn_out = port_to_output (rdyn_port);
+
+  /* Configure the IO lines
+   * Set RDYN as input with pull-up. Other lines are output by default
+   */
+  *rdyn_mode &= ~_BV(pins.rdyn_pin);
+  *rdyn_out |= _BV(pins.rdyn_pin);
 
   /* Set MISO as input */
-  DDRB &= ~pins.miso_pin_mask;
+  *miso_mode &= ~_BV(pins.miso_pin);
 
   /* Configure SPI registers */
   SPCR |= _BV(SPE) | _BV(DORD) | _BV(MSTR) | _BV(SPI2X) | _BV(SPR0);
@@ -185,32 +189,22 @@ static inline uint8_t m_spi_readwrite(const uint8_t aci_byte)
 
 void hal_aci_tl_init(void)
 {
-  uint8_t i;
-  uint8_t *addr = (uint8_t *) 2;
-  aci_pins_t pins;
-  aci_pins_t *p = &pins;
-  uint8_t credit_total;
-  uint8_t credit_available;
-  uint8_t pipes[NUM_PIPES];
-
+  uint8_t *addr = (uint8_t *) 0;
 
   /* Initialize the ACI Command queue. */
   aci_queue_init(&aci_tx_q);
   aci_queue_init(&aci_rx_q);
 
-  /* Read aci_pins_t put it in memory */
-  for (i = 0; i < sizeof(aci_pins_t); i++) {
-    (*(uint8_t *) p++) = eeprom_read_byte (addr++);
-  }
+  /* Read setup data from EEPROM */
+  eeprom_read_block ((void *) &pins, (const uint8_t *) addr, sizeof(aci_pins_t));
+  addr += sizeof(aci_pins_t);
 
   credit_total = eeprom_read_byte (addr++);
-  credit_available = eeprom_read_byte (addr++);
 
-  /* Read aci_pins_t put it in memory */
-  for (i = 0; i < NUM_PIPES; i++) {
-    pipes[i] = eeprom_read_byte (addr++);
-  }
+  eeprom_read_block ((void *)pipes, (const uint8_t *) addr, NUM_PIPES);
+  addr += NUM_PIPES;
 
+  /* Set up SPI */
   m_spi_init ();
 }
 
@@ -264,17 +258,14 @@ bool hal_aci_tl_event_get(hal_aci_data_t *p_aci_data)
 
 void hal_aci_tl_pin_reset(void)
 {
-  pins.reset_port |= pins.reset_pin_mask;
+  volatile uint8_t *reset_out = port_to_output (pin_to_port (pins.reset_pin));
 
-  PORTD |= pins.reset_pin_mask;
-  PORTD &= ~pins.reset_pin_mask;
-  PORTD |= pins.reset_pin_mask;
+  *reset_out |= _BV(pins.rdyn_pin);
+  *reset_out &= ~_BV(pins.rdyn_pin);
+  *reset_out |= _BV(pins.rdyn_pin);
 
   /* Set the nRF8001 to a known state as required by the data sheet */
-  PORTB |= pins.reqn_pin_mask;
-  PORTB &= ~pins.miso_pin_mask;
-  PORTB &= ~pins.mosi_pin_mask;
-  PORTB &= ~pins.sck_pin_mask;
+  m_spi_init ();
 
   /* Wait for the nRF8001 to get hold of its lines as the lines float for a few ms after reset */
   _delay_ms(30);
