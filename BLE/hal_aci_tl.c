@@ -41,8 +41,8 @@ static inline uint8_t m_spi_readwrite (const uint8_t aci_byte);
 static aci_queue_t    aci_tx_q;
 static aci_queue_t    aci_rx_q;
 static aci_pins_t     pins;
-static uint8_t pipes[NUM_PIPES];
-static uint8_t credit_total;
+//static uint8_t pipes[NUM_PIPES];
+//static uint8_t credit_total;
 
 /*
   Checks the RDYN line and runs the SPI transfer if required.
@@ -195,12 +195,6 @@ void hal_aci_tl_init(void)
 
   /* Read setup data from EEPROM */
   eeprom_read_block ((void *) &pins, (const uint8_t *) addr, sizeof(aci_pins_t));
-  addr += sizeof(aci_pins_t);
-
-  credit_total = eeprom_read_byte (addr++);
-
-  eeprom_read_block ((void *)pipes, (const uint8_t *) addr, NUM_PIPES);
-  addr += NUM_PIPES;
 
   /* Set up SPI */
   m_spi_init ();
