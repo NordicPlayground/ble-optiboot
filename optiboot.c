@@ -546,7 +546,8 @@ static void hardware_init (void)
 #endif
 
   /* Reset nRF if the rdyn line is high */
-  if (PIND & _BV(PD3)) {
+  if (lib_aci_ready())
+  {
     lib_aci_pin_reset ();
   }
 }
