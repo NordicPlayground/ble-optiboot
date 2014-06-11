@@ -52,8 +52,6 @@ static void m_aci_event_check(void)
   hal_aci_data_t data_to_send;
   hal_aci_data_t received_data;
 
-  volatile uint8_t *rdyn_in = port_to_input (pin_to_port (pins.rdyn_pin));
-
   /* No room to store incoming messages */
   if (aci_queue_is_full(&aci_rx_q))
   {
@@ -63,7 +61,7 @@ static void m_aci_event_check(void)
   /* If the ready line is disabled and we have pending messages outgoing we
    * enable the request line
   */
-  if (*rdyn_in & _BV(pins.rdyn_pin))
+  if (!hal_aci_tl_ready())
   {
     if (!aci_queue_is_empty(&aci_tx_q))
     {
@@ -256,13 +254,21 @@ bool hal_aci_tl_event_get(hal_aci_data_t *p_aci_data)
   return false;
 }
 
+/* Returns true if the ready line is low, or false */
+bool hal_aci_tl_ready (void)
+{
+  volatile uint8_t *rdyn_in = port_to_input (pin_to_port (pins.rdyn_pin));
+
+  return !(*rdyn_in & _BV(pins.rdyn_pin));
+}
+
 void hal_aci_tl_pin_reset(void)
 {
   volatile uint8_t *reset_out = port_to_output (pin_to_port (pins.reset_pin));
 
-  *reset_out |= _BV(pins.rdyn_pin);
-  *reset_out &= ~_BV(pins.rdyn_pin);
-  *reset_out |= _BV(pins.rdyn_pin);
+  *reset_out |= _BV(pins.reset_pin);
+  *reset_out &= ~_BV(pins.reset_pin);
+  *reset_out |= _BV(pins.reset_pin);
 
   /* Set the nRF8001 to a known state as required by the data sheet */
   m_spi_init ();

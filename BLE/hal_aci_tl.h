@@ -107,16 +107,6 @@ void hal_aci_tl_init(void);
  */
 bool hal_aci_tl_send(hal_aci_data_t *aci_buffer);
 
-/** @brief Process pending transactions.
- *  @details
- *  The library code takes care of calling this function to check if the
- *  nRF8001 RDYN line indicates a pending transaction. It will send a pending
- *  message if there is one and return any receive message that was pending.
- *  @return Points to data buffer for received data. Length byte in buffer is 0
- *  if no data received.
- */
-hal_aci_data_t * hal_aci_tl_poll_get(void);
-
 /** @brief Get an ACI event from the event queue
  *  @details
  *  Call this function from the main context to get an event from the ACI event
@@ -124,24 +114,11 @@ hal_aci_data_t * hal_aci_tl_poll_get(void);
  */
 bool hal_aci_tl_event_get(hal_aci_data_t *p_aci_data);
 
-/** @brief Peek an ACI event from the event queue
+/** @brief Check if the nRF8001 is ready to receive data.
  *  @details
- *  Call this function from the main context to peek an event from the ACI
- *  event queue.  This is called by lib_aci_event_peek
+ *  This function returns true if the nRF8001s ready line is low.
  */
-bool hal_aci_tl_event_peek(hal_aci_data_t *p_aci_data);
-
-/** @brief Enable debug printing of all ACI commands sent and ACI events
- * received
- *  @details
- *  When the enable parameter is true. The debug printing is enabled on the
- *  Serial.
- *  When the enable parameter is false. The debug printing is disabled on the
- *  Serial.
- *  By default the debug printing is disabled.
- */
-void hal_aci_tl_debug_print(bool enable);
-
+bool hal_aci_tl_ready(void);
 
 /** @brief Pin reset the nRF8001
  *  @details
@@ -151,36 +128,6 @@ void hal_aci_tl_debug_print(bool enable);
  *  The function handles the exceptions based on the board_name in aci_pins_t
  */
 void hal_aci_tl_pin_reset(void);
-
-/** @brief Return full status of transmit queue
- *  @details
- *
- */
- bool hal_aci_tl_rx_q_full(void);
-
- /** @brief Return empty status of receive queue
- *  @details
- *
- */
- bool hal_aci_tl_rx_q_empty(void);
-
-/** @brief Return full status of receive queue
- *  @details
- *
- */
- bool hal_aci_tl_tx_q_full(void);
-
- /** @brief Return empty status of transmit queue
- *  @details
- *
- */
- bool hal_aci_tl_tx_q_empty(void);
-
-/** @brief Flush the ACI command Queue and the ACI Event Queue
- *  @details
- *  Call this function in the main thread
- */
-void hal_aci_tl_q_flush(void);
 
 #endif /* HAL_ACI_TL_H__ */
 /** @} */
