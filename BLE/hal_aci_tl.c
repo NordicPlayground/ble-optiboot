@@ -20,29 +20,28 @@
  */
 
 #include <stdbool.h>
-#include <avr/eeprom.h>
 #include <avr/io.h>
 #include <util/delay.h>
 
 #include "hal_aci_tl.h"
 #include "aci_queue.h"
-#include "eeprom_data.h"
 #include "pins_arduino.h"
 
 #define NUM_PIPES 3
 
 static void m_aci_event_check (void);
+static void m_aci_pins_set (aci_pins_t *aci_pins);
 static inline void m_aci_reqn_disable (void);
 static inline void m_aci_reqn_enable (void);
 static bool m_aci_spi_transfer (hal_aci_data_t * data_to_send, hal_aci_data_t * received_data);
 static void m_spi_init (void);
-static inline uint8_t m_spi_readwrite (const uint8_t aci_byte);
+static uint8_t m_spi_readwrite (const uint8_t aci_byte);
 
 static aci_queue_t    aci_tx_q;
 static aci_queue_t    aci_rx_q;
-static aci_pins_t     pins;
-//static uint8_t pipes[NUM_PIPES];
-//static uint8_t credit_total;
+
+static aci_pins_t *pins;
+
 
 /*
   Checks the RDYN line and runs the SPI transfer if required.
@@ -99,20 +98,23 @@ static void m_aci_event_check(void)
   return;
 }
 
+static void m_aci_pins_set (aci_pins_t *aci_pins)
+{
+  pins = aci_pins;
+}
+
 static inline void m_aci_reqn_disable (void)
 {
-  uint8_t reqn_port = pin_to_port (pins.reqn_pin);
-  volatile uint8_t *reqn_out = port_to_output (reqn_port);
+  volatile uint8_t *reqn_out = pin_to_output (pins->reqn_pin);
 
-  *reqn_out |= _BV(pins.reqn_pin);
+  *reqn_out |= pin_to_bit_mask(pins->reqn_pin);
 }
 
 static inline void m_aci_reqn_enable (void)
 {
-  uint8_t reqn_port = pin_to_port (pins.reqn_pin);
-  volatile uint8_t *reqn_out = port_to_output (reqn_port);
+  volatile uint8_t *reqn_out = pin_to_output (pins->reqn_pin);
 
-  *reqn_out &= ~_BV(pins.reqn_pin);
+  *reqn_out &= ~pin_to_bit_mask(pins->reqn_pin);
 }
 
 static bool m_aci_spi_transfer (hal_aci_data_t * data_to_send, hal_aci_data_t * received_data)
@@ -159,42 +161,45 @@ static bool m_aci_spi_transfer (hal_aci_data_t * data_to_send, hal_aci_data_t * 
 
 static void m_spi_init (void)
 {
-  uint8_t rdyn_port = pin_to_port (pins.rdyn_pin);
+  volatile uint8_t *miso_mode = pin_to_mode (pins->miso_pin);
+  volatile uint8_t *mosi_mode = pin_to_mode (pins->mosi_pin);
+  volatile uint8_t *rdyn_mode = pin_to_mode (pins->rdyn_pin);
+  volatile uint8_t *reqn_mode = pin_to_mode (pins->reqn_pin);
+  volatile uint8_t *sck_mode = pin_to_mode (pins->sck_pin);
 
-  volatile uint8_t *miso_mode = port_to_mode (pin_to_port (pins.miso_pin));
-  volatile uint8_t *rdyn_mode = port_to_mode (rdyn_port);
-  volatile uint8_t *rdyn_out = port_to_output (rdyn_port);
-
-  /* Configure the IO lines
-   * Set RDYN as input with pull-up. Other lines are output by default
-   */
-  *rdyn_mode &= ~_BV(pins.rdyn_pin);
-  *rdyn_out |= _BV(pins.rdyn_pin);
+  volatile uint8_t *rdyn_out = pin_to_output (pins->rdyn_pin);
 
   /* Set MISO as input */
-  *miso_mode &= ~_BV(pins.miso_pin);
+  *miso_mode &= ~pin_to_bit_mask(pins->miso_pin);
+
+  /* Other SPI lines are output */
+  *mosi_mode |= pin_to_bit_mask(pins->mosi_pin);
+  *reqn_mode |= pin_to_bit_mask(pins->reqn_pin);
+  *sck_mode |= pin_to_bit_mask(pins->sck_pin);
+
+  /* RDYN is input with pull-up */
+  *rdyn_mode &= ~pin_to_bit_mask(pins->rdyn_pin);
+  *rdyn_out |= pin_to_bit_mask(pins->rdyn_pin);
 
   /* Configure SPI registers */
-  SPCR |= _BV(SPE) | _BV(DORD) | _BV(MSTR) | _BV(SPI2X) | _BV(SPR0);
+  SPCR |= pin_to_bit_mask(SPE) | _BV(DORD) | _BV(MSTR) | _BV(SPI2X) | _BV(SPR0);
 }
 
-static inline uint8_t m_spi_readwrite(const uint8_t aci_byte)
+static uint8_t m_spi_readwrite(const uint8_t aci_byte)
 {
   SPDR = aci_byte;
   while(!(SPSR & (1<<SPIF)));
   return SPDR;
 }
 
-void hal_aci_tl_init(void)
+void hal_aci_tl_init(aci_pins_t *aci_pins)
 {
-  uint8_t *addr = (uint8_t *) 0;
+  /* Set local pin struct pointer */
+  m_aci_pins_set (aci_pins);
 
   /* Initialize the ACI Command queue. */
   aci_queue_init(&aci_tx_q);
   aci_queue_init(&aci_rx_q);
-
-  /* Read setup data from EEPROM */
-  eeprom_read_block ((void *) &pins, (const uint8_t *) addr, sizeof(aci_pins_t));
 
   /* Set up SPI */
   m_spi_init ();
@@ -251,18 +256,21 @@ bool hal_aci_tl_event_get(hal_aci_data_t *p_aci_data)
 /* Returns true if the ready line is low, or false */
 bool hal_aci_tl_ready (void)
 {
-  volatile uint8_t *rdyn_in = port_to_input (pin_to_port (pins.rdyn_pin));
+  volatile uint8_t *rdyn_in = pin_to_input (pins->rdyn_pin);
 
-  return !(*rdyn_in & _BV(pins.rdyn_pin));
+  return !(*rdyn_in & pin_to_bit_mask(pins->rdyn_pin));
 }
 
 void hal_aci_tl_pin_reset(void)
 {
-  volatile uint8_t *reset_out = port_to_output (pin_to_port (pins.reset_pin));
+  volatile uint8_t *reset_out = pin_to_output (pins->reset_pin);
+  volatile uint8_t *reset_mode = pin_to_mode (pins->reset_pin);
 
-  *reset_out |= _BV(pins.reset_pin);
-  *reset_out &= ~_BV(pins.reset_pin);
-  *reset_out |= _BV(pins.reset_pin);
+  *reset_mode |= pin_to_bit_mask(pins->reset_pin);
+
+  *reset_out |= pin_to_bit_mask(pins->reset_pin);
+  *reset_out &= ~pin_to_bit_mask(pins->reset_pin);
+  *reset_out |= pin_to_bit_mask(pins->reset_pin);
 
   /* Set the nRF8001 to a known state as required by the data sheet */
   m_spi_init ();

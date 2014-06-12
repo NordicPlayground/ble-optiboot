@@ -25,6 +25,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <avr/eeprom.h>
 #include <util/delay.h>
 
 #include "aci.h"
@@ -67,6 +68,7 @@ bool lib_aci_is_pipe_available(aci_state_t *aci_stat, uint8_t pipe)
 void lib_aci_init(aci_state_t *aci_stat)
 {
   uint8_t i;
+  uint8_t *addr = (uint8_t *) 0;
 
   for (i = 0; i < PIPES_ARRAY_SIZE; i++)
   {
@@ -75,17 +77,15 @@ void lib_aci_init(aci_state_t *aci_stat)
     aci_cmd_params_open_adv_pipe.pipes[i]   = 0;
   }
 
-  is_request_operation_pending     = false;
-  is_indicate_operation_pending    = false;
-  is_open_remote_pipe_pending      = false;
-  is_close_remote_pipe_pending     = false;
-  request_operation_pipe           = 0;
-  indicate_operation_pipe          = 0;
-
   p_services_pipe_type_map = aci_stat->aci_setup_info.services_pipe_type_mapping;
   p_setup_msgs             = aci_stat->aci_setup_info.setup_msgs;
 
-  hal_aci_tl_init();
+  /* Read pin data from EEPROM */
+  eeprom_read_block ((void *) &aci_stat->aci_pins, (const uint8_t *) addr, sizeof(aci_pins_t));
+
+  hal_aci_tl_init(&aci_stat->aci_pins);
+
+  hal_aci_tl_pin_reset();
 }
 
 bool lib_aci_connect(uint16_t run_timeout, uint16_t adv_interval)

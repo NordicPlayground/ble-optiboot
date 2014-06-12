@@ -94,7 +94,7 @@ typedef struct aci_pins_t
  *  @param a_pins Pins on the MCU used to connect to the nRF8001
  *  @param bool True if debug printing should be enabled on the Serial.
  */
-void hal_aci_tl_init(void);
+void hal_aci_tl_init(aci_pins_t *a_pins);
 
 /** @brief Sends an ACI command to the radio.
  *  @details
