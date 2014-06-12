@@ -114,7 +114,7 @@ CC         = $(GCCROOT)avr-gcc
 # Override is only needed by avr-lib build system.
 
 override CFLAGS        = -g -Wall -Werror $(OPTIMIZE) -mmcu=$(MCU_TARGET) -DF_CPU=$(AVR_FREQ) $(DEFS)
-override LDFLAGS       = $(LDSECTIONS) -Wl,--relax -nostartfiles
+override LDFLAGS       = $(LDSECTIONS) -Wl,--relax -Wl,-Map=output.map -nostartfiles
 # -nostdlib
 #-Wl,--gc-sections
 
