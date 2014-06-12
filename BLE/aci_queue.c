@@ -74,31 +74,12 @@ bool aci_queue_enqueue(aci_queue_t *aci_q, hal_aci_data_t *p_data)
 
 bool aci_queue_is_empty(aci_queue_t *aci_q)
 {
-  bool state = false;
-
-  if (aci_q->head == aci_q->tail)
-  {
-    state = true;
-  }
-
-  return state;
+  return (aci_q->head == aci_q->tail);
 }
 
 bool aci_queue_is_full(aci_queue_t *aci_q)
 {
-  uint8_t next;
-  bool state;
+  uint8_t next = (aci_q->tail + 1) % ACI_QUEUE_SIZE;
 
-  next = (aci_q->tail + 1) % ACI_QUEUE_SIZE;
-
-  if (next == aci_q->head)
-  {
-    state = true;
-  }
-  else
-  {
-    state = false;
-  }
-
-  return state;
+  return (next == aci_q->head);
 }
