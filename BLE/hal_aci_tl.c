@@ -29,21 +29,18 @@
 
 #define NUM_PIPES 3
 
-static void m_aci_event_check (void);
+static inline void m_aci_event_check (void);
 static inline void m_aci_reqn_disable (void);
 static inline void m_aci_reqn_enable (void);
-static bool m_aci_spi_transfer (hal_aci_data_t * data_to_send, hal_aci_data_t * received_data);
-static void m_spi_init (void);
-static uint8_t m_spi_readwrite (const uint8_t aci_byte);
+static inline void m_spi_init (void);
+static inline uint8_t m_spi_readwrite (const uint8_t aci_byte);
+static inline void m_aci_spi_transfer (hal_aci_data_t * data_to_send,
+    hal_aci_data_t * received_data);
 
-static aci_queue_t    aci_tx_q;
-static aci_queue_t    aci_rx_q;
+static aci_queue_t  aci_tx_q;
+static aci_queue_t  aci_rx_q;
+static aci_pins_t   *pins;
 
-static aci_pins_t *pins;
-
-/*
-  Checks the RDYN line and runs the SPI transfer if required.
-*/
 static void m_aci_event_check(void)
 {
   hal_aci_data_t data_to_send;
@@ -110,7 +107,7 @@ static inline void m_aci_reqn_enable (void)
   *reqn_out &= ~pin_to_bit_mask(pins->reqn_pin);
 }
 
-static bool m_aci_spi_transfer (hal_aci_data_t * data_to_send, hal_aci_data_t * received_data)
+static void m_aci_spi_transfer (hal_aci_data_t * data_to_send, hal_aci_data_t * received_data)
 {
   uint8_t byte_cnt;
   uint8_t byte_sent_cnt;
@@ -148,8 +145,6 @@ static bool m_aci_spi_transfer (hal_aci_data_t * data_to_send, hal_aci_data_t * 
 
   /* RDYN should follow the REQN line in approx 100ns */
   m_aci_reqn_disable();
-
-  return (max_bytes > 0);
 }
 
 static void m_spi_init (void)
@@ -246,7 +241,6 @@ bool hal_aci_tl_event_get(hal_aci_data_t *p_aci_data)
   return false;
 }
 
-/* Returns true if the ready line is low, or false */
 bool hal_aci_tl_ready (void)
 {
   volatile uint8_t *rdyn_in = pin_to_input (pins->rdyn_pin);
