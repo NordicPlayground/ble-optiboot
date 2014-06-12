@@ -8,13 +8,11 @@
 #include "dfu.h"
 #include "services.h"
 
-static uint8_t dfu_data_pkt_handle (aci_state_t *aci_state,
+static void dfu_data_pkt_handle (aci_state_t *aci_state,
     aci_evt_t *aci_evt);
-static uint8_t dfu_init_pkt_handle (aci_state_t *aci_state,
-    aci_evt_t *aci_evt);
-static uint8_t dfu_image_size_set (aci_state_t *aci_state, aci_evt_t *aci_evt);
-static uint8_t dfu_image_validate (aci_state_t *aci_state, aci_evt_t *aci_evt);
-static uint8_t dfu_reset (aci_state_t *aci_state, aci_evt_t *aci_evt);
+static void dfu_image_size_set (aci_state_t *aci_state, aci_evt_t *aci_evt);
+static void dfu_image_validate (aci_state_t *aci_state, aci_evt_t *aci_evt);
+static void dfu_reset (aci_state_t *aci_state, aci_evt_t *aci_evt);
 
 static void m_notify (aci_state_t *aci_state);
 static bool m_send (aci_state_t *aci_state, uint8_t *buff, uint8_t buff_len);
@@ -116,22 +114,10 @@ static void m_write_page (uint16_t page, uint8_t *buff)
  * State transition functions
  */
 
-/* Transition to the init packet receive state */
-static uint8_t dfu_begin_init (aci_state_t *aci_state, aci_evt_t *aci_evt)
-{
-  return ST_RX_INIT_PKT;
-}
-
-/* Transition to the data packet receive state */
-static uint8_t dfu_begin_transfer (aci_state_t *aci_state, aci_evt_t *aci_evt)
-{
-  return ST_RX_DATA_PKT;
-}
-
 /* Receive a firmware packet, and write it to flash. Also sends receipt
  * notifications if needed
  */
-static uint8_t dfu_data_pkt_handle (aci_state_t *aci_state, aci_evt_t *aci_evt)
+static void dfu_data_pkt_handle (aci_state_t *aci_state, aci_evt_t *aci_evt)
 {
   static uint8_t response[] = {OP_CODE_RESPONSE,
      BLE_DFU_RECEIVE_APP_PROCEDURE,
@@ -179,12 +165,10 @@ static uint8_t dfu_data_pkt_handle (aci_state_t *aci_state, aci_evt_t *aci_evt)
     /* Send firmware received notification */
     m_send (aci_state, response, sizeof(response));
   }
-
-  return ST_RX_DATA_PKT;
 }
 
 /* Receive and store the firmware image size */
-static uint8_t dfu_image_size_set (aci_state_t *aci_state, aci_evt_t *aci_evt)
+static void dfu_image_size_set (aci_state_t *aci_state, aci_evt_t *aci_evt)
 {
   const uint8_t pipe = PIPE_DEVICE_FIRMWARE_UPDATE_BLE_SERVICE_DFU_CONTROL_POINT_TX;
   const uint8_t byte_idx = pipe / 8;
@@ -212,11 +196,11 @@ static uint8_t dfu_image_size_set (aci_state_t *aci_state, aci_evt_t *aci_evt)
   /* Write response */
   m_send (aci_state, response, sizeof(response));
 
-  return ST_RDY;
+  state = ST_RDY;
 }
 
 /* Disconnect from the nRF8001 and do a reset */
-static uint8_t dfu_reset  (aci_state_t *aci_state, aci_evt_t *aci_evt)
+static void dfu_reset  (aci_state_t *aci_state, aci_evt_t *aci_evt)
 {
   hal_aci_evt_t aci_data;
 
@@ -231,20 +215,10 @@ static uint8_t dfu_reset  (aci_state_t *aci_state, aci_evt_t *aci_evt)
       while(1);
     }
   }
-
-  return ST_ANY;
-}
-
-/* Process incoming init data. This is not yet implemented, as the Master
- * Control Panel application sends no data.
- */
-static uint8_t dfu_init_pkt_handle (aci_state_t *aci_state, aci_evt_t *aci_evt)
-{
-  return ST_RX_INIT_PKT;
 }
 
 /* Validate the received firmware image, and transmit the result */
-static uint8_t dfu_image_validate (aci_state_t *aci_state, aci_evt_t *aci_evt)
+static void dfu_image_validate (aci_state_t *aci_state, aci_evt_t *aci_evt)
 {
   uint8_t response[] = {OP_CODE_RESPONSE,
     BLE_DFU_VALIDATE_PROCEDURE,
@@ -253,37 +227,17 @@ static uint8_t dfu_image_validate (aci_state_t *aci_state, aci_evt_t *aci_evt)
   /* Completed successfully */
   m_send(aci_state, response, sizeof(response));
 
-  return ST_FW_VALID;
+  state = ST_FW_VALID;
 }
 
 /* Update the interval between receipt notifications */
-static uint8_t dfu_notification_set (aci_state_t *aci_state,
+static void dfu_notification_set (aci_state_t *aci_state,
     aci_evt_t *aci_evt)
 {
   notify_interval =
     (uint16_t)aci_evt->params.data_received.rx_data.aci_data[2] << 8 |
     (uint16_t)aci_evt->params.data_received.rx_data.aci_data[1];
-
-  return state;
 }
-
-/* Table of states, events we should react to in those states, and the
- * transition function that should be called for each defined state/event pair
- */
-dfu_transition_t trans[] = {
-  { ST_RDY,         OP_CODE_RECEIVE_INIT,            &dfu_begin_init       },
-  { ST_IDLE,        DFU_PACKET_RX,                   &dfu_image_size_set   },
-  { ST_RX_INIT_PKT, DFU_PACKET_RX,                   &dfu_init_pkt_handle  },
-  { ST_RDY,         OP_CODE_RECEIVE_FW,              &dfu_begin_transfer   },
-  { ST_RX_INIT_PKT, OP_CODE_RECEIVE_FW,              &dfu_begin_transfer   },
-  { ST_RX_DATA_PKT, DFU_PACKET_RX,                   &dfu_data_pkt_handle  },
-  { ST_RX_DATA_PKT, OP_CODE_VALIDATE,                &dfu_image_validate   },
-  { ST_FW_VALID,    OP_CODE_ACTIVATE_N_RESET,        &dfu_reset            },
-  { ST_ANY,         OP_CODE_SYS_RESET,               &dfu_reset            },
-  { ST_ANY,         OP_CODE_PKT_RCPT_NOTIF_REQ,      &dfu_notification_set }
-};
-
-#define TRANS_COUNT (sizeof(trans)/sizeof(*trans))
 
 /* Initialize the state machine */
 void dfu_init (void)
@@ -297,7 +251,6 @@ void dfu_update (aci_state_t *aci_state, aci_evt_t *aci_evt)
   const aci_rx_data_t *rx_data = &(aci_evt->params.data_received.rx_data);
   uint8_t event = EV_ANY;
   uint8_t pipe;
-  uint8_t i;
 
   pipe = rx_data->pipe_number;
 
@@ -310,16 +263,41 @@ void dfu_update (aci_state_t *aci_state, aci_evt_t *aci_evt)
     event = rx_data->aci_data[0];
   }
 
-  /* Look through the state machine table and issue a function call
-   * if one is stored for the current state and event.
-   */
-  for (i = 0; i < TRANS_COUNT; i++)
+  /* Update the state machine */
+  switch (event)
   {
-    if (((state == trans[i].st) || (ST_ANY == trans[i].st)) &&
-        ((event == trans[i].ev) || (EV_ANY == trans[i].ev)))
-    {
-      state = (trans[i].fn)(aci_state, aci_evt);
+    case DFU_PACKET_RX:
+      switch (state)
+      {
+        case ST_IDLE:
+          dfu_image_size_set(aci_state, aci_evt);
+          break;
+        case ST_RX_DATA_PKT:
+          dfu_data_pkt_handle(aci_state, aci_evt);
+          break;
+      }
       break;
-    }
+    case OP_CODE_RECEIVE_INIT:
+      if (state == ST_RDY)
+        state = ST_RX_INIT_PKT;
+      break;
+    case OP_CODE_RECEIVE_FW:
+      if (state == ST_RDY || state == ST_RX_INIT_PKT)
+        state = ST_RX_DATA_PKT;
+      break;
+    case OP_CODE_VALIDATE:
+      if (state == ST_RX_DATA_PKT)
+        dfu_image_validate(aci_state, aci_evt);
+      break;
+    case OP_CODE_ACTIVATE_N_RESET:
+      if (state == ST_FW_VALID)
+        dfu_reset(aci_state, aci_evt);
+      break;
+    case OP_CODE_SYS_RESET:
+      dfu_reset(aci_state, aci_evt);
+      break;
+    case OP_CODE_PKT_RCPT_NOTIF_REQ:
+      dfu_notification_set (aci_state, aci_evt);
+      break;
   }
 }
