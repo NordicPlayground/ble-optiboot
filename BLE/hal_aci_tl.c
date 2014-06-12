@@ -30,7 +30,6 @@
 #define NUM_PIPES 3
 
 static void m_aci_event_check (void);
-static void m_aci_pins_set (aci_pins_t *aci_pins);
 static inline void m_aci_reqn_disable (void);
 static inline void m_aci_reqn_enable (void);
 static bool m_aci_spi_transfer (hal_aci_data_t * data_to_send, hal_aci_data_t * received_data);
@@ -41,7 +40,6 @@ static aci_queue_t    aci_tx_q;
 static aci_queue_t    aci_rx_q;
 
 static aci_pins_t *pins;
-
 
 /*
   Checks the RDYN line and runs the SPI transfer if required.
@@ -96,11 +94,6 @@ static void m_aci_event_check(void)
   }
 
   return;
-}
-
-static void m_aci_pins_set (aci_pins_t *aci_pins)
-{
-  pins = aci_pins;
 }
 
 static inline void m_aci_reqn_disable (void)
@@ -195,7 +188,7 @@ static uint8_t m_spi_readwrite(const uint8_t aci_byte)
 void hal_aci_tl_init(aci_pins_t *aci_pins)
 {
   /* Set local pin struct pointer */
-  m_aci_pins_set (aci_pins);
+  pins = aci_pins;
 
   /* Initialize the ACI Command queue. */
   aci_queue_init(&aci_tx_q);
