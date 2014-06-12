@@ -197,5 +197,5 @@ bool lib_aci_ready(void)
 
 void lib_aci_pin_reset(void)
 {
-    hal_aci_tl_pin_reset();
+  hal_aci_tl_pin_reset();
 }
