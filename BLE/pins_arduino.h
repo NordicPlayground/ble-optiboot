@@ -27,10 +27,9 @@
 
 #include <avr/pgmspace.h>
 
-volatile uint8_t *port_to_mode (uint8_t n);
-volatile uint8_t *port_to_output (uint8_t n);
-volatile uint8_t *port_to_input (uint8_t n);
-uint8_t pin_to_port (uint8_t n);
+volatile uint8_t *pin_to_mode (uint8_t n);
+volatile uint8_t *pin_to_output (uint8_t n);
+volatile uint8_t *pin_to_input (uint8_t n);
 uint8_t pin_to_bit_mask (uint8_t n);
 
 #define NOT_A_PIN 0
