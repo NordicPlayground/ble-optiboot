@@ -434,12 +434,24 @@ void application_jump_check (void)
 int main (void)
 {
   uint8_t ch;
-  uint8_t *addr = (uint8_t *) 13;
   uint8_t pipes[3];
   hal_aci_evt_t aci_data;
 
-  /* Read pipe data from EEPROM */
-  eeprom_read_block ((void *) &pipes, (const uint8_t *) addr, 3);
+  const uint8_t *pins_addr = (uint8_t *) 0;
+  const uint8_t *credit_addr = (uint8_t *) 12;
+  const uint8_t *pipes_addr = (uint8_t *) 13;
+
+  /* Read pin data */
+  eeprom_read_block ((void *) &aci_state.aci_pins, pins_addr,
+      sizeof(aci_pins_t));
+
+  /* Read credit data */
+  eeprom_read_block ((void *) &(aci_state.data_credit_total), credit_addr,
+      1);
+  aci_state.data_credit_available = aci_state.data_credit_total;
+
+  /* Read pipe data */
+  eeprom_read_block ((void *) &pipes, pipes_addr, 3);
 
   hardware_init ();
   ble_init ();

@@ -60,16 +60,12 @@ bool lib_aci_is_pipe_available(aci_state_t *aci_stat, uint8_t pipe)
 void lib_aci_init(aci_state_t *aci_stat)
 {
   uint8_t i;
-  uint8_t *addr = (uint8_t *) 0;
 
   for (i = 0; i < PIPES_ARRAY_SIZE; i++)
   {
     aci_stat->pipes_open_bitmap[i]          = 0;
     aci_stat->pipes_closed_bitmap[i]        = 0;
   }
-
-  /* Read pin data from EEPROM */
-  eeprom_read_block ((void *) &aci_stat->aci_pins, (const uint8_t *) addr, sizeof(aci_pins_t));
 
   hal_aci_tl_init(&aci_stat->aci_pins);
 

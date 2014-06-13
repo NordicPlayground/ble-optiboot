@@ -167,7 +167,6 @@ static void dfu_image_size_set (aci_state_t *aci_state, aci_evt_t *aci_evt)
    */
   aci_state->pipes_open_bitmap[byte_idx] |= (1 << (pipe % 8));
   aci_state->pipes_closed_bitmap[byte_idx] &= ~(1 << (pipe % 8));
-  aci_state->data_credit_available = 2;
 
   firmware_len =
     (uint32_t)aci_evt->params.data_received.rx_data.aci_data[3] << 24 |
