@@ -45,14 +45,6 @@
 Global additionally used used in aci_setup
 */
 
-static services_pipe_type_mapping_t * p_services_pipe_type_map;
-static hal_aci_data_t *               p_setup_msgs;
-
-/* The following structure (aci_cmd_params_open_adv_pipe) will be used to store the complete command
- * including the pipes to be opened.
- */
-static aci_cmd_params_open_adv_pipe_t aci_cmd_params_open_adv_pipe;
-
 bool lib_aci_is_pipe_available(aci_state_t *aci_stat, uint8_t pipe)
 {
   uint8_t byte_idx;
@@ -74,11 +66,7 @@ void lib_aci_init(aci_state_t *aci_stat)
   {
     aci_stat->pipes_open_bitmap[i]          = 0;
     aci_stat->pipes_closed_bitmap[i]        = 0;
-    aci_cmd_params_open_adv_pipe.pipes[i]   = 0;
   }
-
-  p_services_pipe_type_map = aci_stat->aci_setup_info.services_pipe_type_mapping;
-  p_setup_msgs             = aci_stat->aci_setup_info.setup_msgs;
 
   /* Read pin data from EEPROM */
   eeprom_read_block ((void *) &aci_stat->aci_pins, (const uint8_t *) addr, sizeof(aci_pins_t));
