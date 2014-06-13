@@ -311,9 +311,10 @@ asm("  .section .version\n"
  */
 int main(void) __attribute__ ((OS_main)) __attribute__ ((section (".init9")));
 static void hardware_init (void);
-static void uart_update_firmware (void);
+static void uart_update (void);
 static uint8_t uart_validate_byte (uint8_t ch);
-static uint8_t ble_update_firmware(void);
+static void ble_init (void);
+static uint8_t ble_update (void);
 static void putch(uint8_t ch);
 static uint8_t getch(void);
 static void getNch(uint8_t count);
@@ -437,32 +438,11 @@ int main (void)
   uint8_t ch;
   hal_aci_evt_t aci_data;
 
-#ifdef SERVICES_PIPE_TYPE_MAPPING_CONTENT
-  static services_pipe_type_mapping_t
-    services_pipe_type_mapping[NUMBER_OF_PIPES] =
-      SERVICES_PIPE_TYPE_MAPPING_CONTENT;
-#else
-  #define NUMBER_OF_PIPES 0
-  static services_pipe_type_mapping_t * services_pipe_type_mapping = NULL;
-#endif
-
   hardware_init ();
-
-  /**
-   * Point ACI data structures to the the setup data that the nRFgo studio
-   * generated for the nRF8001 */
-  if (NULL != services_pipe_type_mapping) {
-    aci_state.aci_setup_info.services_pipe_type_mapping =
-      &services_pipe_type_mapping[0];
-  } else {
-    aci_state.aci_setup_info.services_pipe_type_mapping = NULL;
-  }
-  aci_state.aci_setup_info.number_of_pipes = NUMBER_OF_PIPES;
-  lib_aci_init (&aci_state);
+  ble_init ();
+  dfu_init ();
 
   boot_key = BOOTLOADER_KEY;
-
-  dfu_init ();
 
   for (;;) {
     /* We grab the value in the UDR register without looping, as we need to do
@@ -474,15 +454,15 @@ int main (void)
      * received character is among the STK500 constants, and enter the UART
      * bootloader procedure if it is
     */
-    if (ble_update_firmware()) {
+    if (ble_update ()) {
 
       dfu_update(&aci_state, &(aci_data.evt));
       for (;;) {
-        (void)ble_update_firmware ();
+        (void)ble_update ();
       }
     } else if (uart_validate_byte (ch)) {
       verifySpace ();
-      uart_update_firmware ();
+      uart_update ();
     }
   }
 }
@@ -533,7 +513,39 @@ static void hardware_init (void)
   }
 }
 
-static void uart_update_firmware (void)
+static void ble_init (void)
+{
+#ifdef SERVICES_PIPE_TYPE_MAPPING_CONTENT
+  static services_pipe_type_mapping_t
+    services_pipe_type_mapping[NUMBER_OF_PIPES] =
+      SERVICES_PIPE_TYPE_MAPPING_CONTENT;
+#else
+  #define NUMBER_OF_PIPES 0
+  static services_pipe_type_mapping_t * services_pipe_type_mapping = NULL;
+#endif
+
+  /**
+   * Point ACI data structures to the the setup data that the nRFgo studio
+   * generated for the nRF8001 */
+  if (NULL != services_pipe_type_mapping) {
+    aci_state.aci_setup_info.services_pipe_type_mapping =
+      &services_pipe_type_mapping[0];
+  } else {
+    aci_state.aci_setup_info.services_pipe_type_mapping = NULL;
+  }
+
+  aci_state.aci_setup_info.number_of_pipes = NUMBER_OF_PIPES;
+
+  lib_aci_init (&aci_state);
+
+  /* Reset nRF if the rdyn line is high */
+  if (lib_aci_ready())
+  {
+    lib_aci_pin_reset ();
+  }
+}
+
+static void uart_update (void)
 {
   uint8_t ch;
   uint16_t address;
@@ -769,7 +781,7 @@ static uint8_t uart_validate_byte (uint8_t ch)
   return ret;
 }
 
-static uint8_t ble_update_firmware (void)
+static uint8_t ble_update (void)
 {
   hal_aci_evt_t aci_data;
   aci_evt_t *aci_evt;
