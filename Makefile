@@ -102,7 +102,7 @@ STK500-2 = $(STK500) -d$(MCU_TARGET) -ms -q -lCF -LCF -cUSB -I200kHz -s -wt
 # End of build environment code.
 
 
-LIBS       = BLE/acilib.o BLE/dfu.o BLE/lib_aci.o BLE/aci_queue.o BLE/hal_aci_tl.o BLE/pins_arduino.o
+LIBS       = BLE/dfu.o BLE/lib_aci.o BLE/aci_queue.o BLE/hal_aci_tl.o BLE/pins_arduino.o
 OBJ        = $(PROGRAM).o $(LIBS)
 OPTIMIZE = -Os -fno-inline-small-functions -fno-split-wide-types
 # -mshort-calls

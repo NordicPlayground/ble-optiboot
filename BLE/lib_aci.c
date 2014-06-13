@@ -32,6 +32,7 @@
 #include "aci_cmds.h"
 #include "aci_evts.h"
 #include "aci_protocol_defines.h"
+#include "acilib.h"
 #include "acilib_defs.h"
 #include "acilib_if.h"
 #include "hal_aci_tl.h"
@@ -43,7 +44,6 @@
 /*
 Global additionally used used in aci_setup
 */
-hal_aci_data_t  msg_to_send;
 
 static services_pipe_type_mapping_t * p_services_pipe_type_map;
 static hal_aci_data_t *               p_setup_msgs;
@@ -90,10 +90,33 @@ void lib_aci_init(aci_state_t *aci_stat)
 
 bool lib_aci_connect(uint16_t run_timeout, uint16_t adv_interval)
 {
+  hal_aci_data_t  msg_to_send;
   aci_cmd_params_connect_t aci_cmd_params_connect;
+
+  uint8_t *buffer = &(msg_to_send.buffer[0]);
+
   aci_cmd_params_connect.timeout      = run_timeout;
   aci_cmd_params_connect.adv_interval = adv_interval;
-  acil_encode_cmd_connect(&(msg_to_send.buffer[0]), &aci_cmd_params_connect);
+
+  *(buffer + OFFSET_ACI_CMD_T_LEN) = MSG_CONNECT_LEN;
+  *(buffer + OFFSET_ACI_CMD_T_CMD_OPCODE) = ACI_CMD_CONNECT;
+
+  *(buffer + OFFSET_ACI_CMD_T_CONNECT +
+      OFFSET_ACI_CMD_PARAMS_CONNECT_T_TIMEOUT_MSB) =
+    (uint8_t)(aci_cmd_params_connect.timeout >> 8);
+
+  *(buffer + OFFSET_ACI_CMD_T_CONNECT +
+      OFFSET_ACI_CMD_PARAMS_CONNECT_T_TIMEOUT_LSB) =
+    (uint8_t)(aci_cmd_params_connect.timeout);
+
+  *(buffer + OFFSET_ACI_CMD_T_CONNECT +
+      OFFSET_ACI_CMD_PARAMS_CONNECT_T_ADV_INTERVAL_MSB) =
+    (uint8_t)(aci_cmd_params_connect.adv_interval >> 8);
+
+  *(buffer + OFFSET_ACI_CMD_T_CONNECT +
+      OFFSET_ACI_CMD_PARAMS_CONNECT_T_ADV_INTERVAL_LSB) =
+    (uint8_t)(aci_cmd_params_connect.adv_interval);
+
   return hal_aci_tl_send(&msg_to_send);
 }
 
@@ -101,9 +124,19 @@ bool lib_aci_disconnect(aci_state_t *aci_stat, aci_disconnect_reason_t reason)
 {
   bool ret_val;
   uint8_t i;
+  hal_aci_data_t  msg_to_send;
+  uint8_t *buffer = &(msg_to_send.buffer[0]);
+
   aci_cmd_params_disconnect_t aci_cmd_params_disconnect;
   aci_cmd_params_disconnect.reason = reason;
-  acil_encode_cmd_disconnect(&(msg_to_send.buffer[0]), &aci_cmd_params_disconnect);
+
+  *(buffer + OFFSET_ACI_CMD_T_LEN) = MSG_DISCONNECT_LEN;
+  *(buffer + OFFSET_ACI_CMD_T_CMD_OPCODE) = ACI_CMD_DISCONNECT;
+
+  *(buffer + OFFSET_ACI_CMD_T_DISCONNECT +
+      OFFSET_ACI_CMD_PARAMS_DISCONNECT_T_REASON) =
+    (uint8_t)(aci_cmd_params_disconnect.reason);
+
   ret_val = hal_aci_tl_send(&msg_to_send);
   /* If we have actually sent the disconnect */
   if (ret_val)
@@ -125,7 +158,24 @@ bool lib_aci_disconnect(aci_state_t *aci_stat, aci_disconnect_reason_t reason)
 bool lib_aci_send_data(uint8_t pipe, uint8_t *p_value, uint8_t size)
 {
   aci_cmd_params_send_data_t aci_cmd_params_send_data;
+  hal_aci_data_t  msg_to_send;
+  uint8_t *buffer = &(msg_to_send.buffer[0]);
 
+  aci_cmd_params_send_data.tx_data.pipe_number = pipe;
+  memcpy(&(aci_cmd_params_send_data.tx_data.aci_data[0]), p_value, size);
+
+  *(buffer + OFFSET_ACI_CMD_T_LEN) = MSG_SEND_DATA_BASE_LEN + size;
+  *(buffer + OFFSET_ACI_CMD_T_CMD_OPCODE) = ACI_CMD_SEND_DATA;
+
+  *(buffer + OFFSET_ACI_CMD_T_SEND_DATA +
+      OFFSET_ACI_CMD_PARAMS_SEND_DATA_T_TX_DATA +
+      OFFSET_ACI_TX_DATA_T_PIPE_NUMBER) =
+    aci_cmd_params_send_data.tx_data.pipe_number;
+
+  memcpy((buffer + OFFSET_ACI_CMD_T_SEND_DATA +
+        OFFSET_ACI_CMD_PARAMS_SEND_DATA_T_TX_DATA +
+        OFFSET_ACI_TX_DATA_T_ACI_DATA),
+      &(aci_cmd_params_send_data.tx_data.aci_data[0]), size);
 
   return hal_aci_tl_send(&msg_to_send);
 }
