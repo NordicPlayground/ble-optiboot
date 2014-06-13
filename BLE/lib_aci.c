@@ -67,9 +67,21 @@ bool lib_aci_is_pipe_available(aci_state_t *aci_stat, uint8_t pipe)
 
 void lib_aci_init(aci_state_t *aci_stat)
 {
-  memset (aci_stat->pipes_open_bitmap, 0, PIPES_ARRAY_SIZE);
-  memset (aci_stat->pipes_closed_bitmap, 0, PIPES_ARRAY_SIZE);
-  memset (aci_cmd_params_open_adv_pipe.pipes, 0, PIPES_ARRAY_SIZE);
+  uint8_t i;
+
+  for (i = 0; i < PIPES_ARRAY_SIZE; i++)
+  {
+    aci_stat->pipes_open_bitmap[i]          = 0;
+    aci_stat->pipes_closed_bitmap[i]        = 0;
+    aci_cmd_params_open_adv_pipe.pipes[i]   = 0;
+  }
+
+  is_request_operation_pending     = false;
+  is_indicate_operation_pending    = false;
+  is_open_remote_pipe_pending      = false;
+  is_close_remote_pipe_pending     = false;
+  request_operation_pipe           = 0;
+  indicate_operation_pipe          = 0;
 
   p_services_pipe_type_map = aci_stat->aci_setup_info.services_pipe_type_mapping;
   p_setup_msgs             = aci_stat->aci_setup_info.setup_msgs;
@@ -89,6 +101,7 @@ bool lib_aci_connect(uint16_t run_timeout, uint16_t adv_interval)
 bool lib_aci_disconnect(aci_state_t *aci_stat, aci_disconnect_reason_t reason)
 {
   bool ret_val;
+  uint8_t i;
   aci_cmd_params_disconnect_t aci_cmd_params_disconnect;
   aci_cmd_params_disconnect.reason = reason;
   acil_encode_cmd_disconnect(&(msg_to_send.buffer[0]), &aci_cmd_params_disconnect);
@@ -101,8 +114,11 @@ bool lib_aci_disconnect(aci_state_t *aci_stat, aci_disconnect_reason_t reason)
      * If the application sends another message before we updated this
      * a ACI Pipe Error Event will be received from nRF8001
      */
-    memset (aci_stat->pipes_open_bitmap, 0, PIPES_ARRAY_SIZE);
-    memset (aci_stat->pipes_closed_bitmap, 0, PIPES_ARRAY_SIZE);
+    for (i=0; i < PIPES_ARRAY_SIZE; i++)
+    {
+      aci_stat->pipes_open_bitmap[i] = 0;
+      aci_stat->pipes_closed_bitmap[i] = 0;
+    }
   }
   return ret_val;
 }
@@ -111,9 +127,6 @@ bool lib_aci_send_data(uint8_t pipe, uint8_t *p_value, uint8_t size)
 {
   aci_cmd_params_send_data_t aci_cmd_params_send_data;
 
-  aci_cmd_params_send_data.tx_data.pipe_number = pipe;
-  memcpy(&(aci_cmd_params_send_data.tx_data.aci_data[0]), p_value, size);
-  acil_encode_cmd_send_data(&(msg_to_send.buffer[0]), &aci_cmd_params_send_data, size);
 
   return hal_aci_tl_send(&msg_to_send);
 }
@@ -149,8 +162,14 @@ bool lib_aci_event_get(aci_state_t *aci_stat, hal_aci_evt_t *p_aci_evt_data)
 
         case ACI_EVT_DISCONNECTED:
             {
-                memset (aci_stat->pipes_open_bitmap, 0, PIPES_ARRAY_SIZE);
-                memset (aci_stat->pipes_closed_bitmap, 0, PIPES_ARRAY_SIZE);
+                uint8_t i=0;
+
+                for (i=0; i < PIPES_ARRAY_SIZE; i++)
+                {
+                  aci_stat->pipes_open_bitmap[i] = 0;
+                  aci_stat->pipes_closed_bitmap[i] = 0;
+                }
+                aci_stat->confirmation_pending = false;
                 aci_stat->data_credit_available = aci_stat->data_credit_total;
 
             }
