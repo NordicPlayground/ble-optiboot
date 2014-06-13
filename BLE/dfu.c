@@ -246,29 +246,14 @@ static uint8_t dfu_init_pkt_handle (aci_state_t *aci_state, aci_evt_t *aci_evt)
 /* Validate the received firmware image, and transmit the result */
 static uint8_t dfu_image_validate (aci_state_t *aci_state, aci_evt_t *aci_evt)
 {
-  uint8_t ret;
   uint8_t response[] = {OP_CODE_RESPONSE,
     BLE_DFU_VALIDATE_PROCEDURE,
     BLE_DFU_RESP_VAL_SUCCESS};
 
-  /* TODO: Implement CRC validation */
-  if (total_bytes_received == firmware_len)
-  {
-    /* Completed successfully */
-    m_send(aci_state, response, sizeof(response));
+  /* Completed successfully */
+  m_send(aci_state, response, sizeof(response));
 
-    ret = ST_FW_VALID;
-  }
-  else
-  {
-    /* CRC error */
-    response[2] = BLE_DFU_RESP_VAL_CRC_ERROR;
-    m_send(aci_state, response, sizeof(response));
-
-    ret = ST_FW_INVALID;
-  }
-
-  return ret;
+  return ST_FW_VALID;
 }
 
 /* Update the interval between receipt notifications */
