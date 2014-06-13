@@ -434,8 +434,12 @@ void application_jump_check (void)
 int main (void)
 {
   uint8_t ch;
-  uint8_t pipes[] = {8,9,10};
+  uint8_t *addr = (uint8_t *) 13;
+  uint8_t pipes[3];
   hal_aci_evt_t aci_data;
+
+  /* Read pipe data from EEPROM */
+  eeprom_read_block ((void *) &pipes, (const uint8_t *) addr, 3);
 
   hardware_init ();
   ble_init ();
@@ -514,28 +518,6 @@ static void hardware_init (void)
 
 static void ble_init (void)
 {
-#ifdef SERVICES_PIPE_TYPE_MAPPING_CONTENT
-  #define NUMBER_OF_PIPES 15
-  static services_pipe_type_mapping_t
-    services_pipe_type_mapping[NUMBER_OF_PIPES] =
-      SERVICES_PIPE_TYPE_MAPPING_CONTENT;
-#else
-  #define NUMBER_OF_PIPES 0
-  static services_pipe_type_mapping_t * services_pipe_type_mapping = NULL;
-#endif
-
-  /**
-   * Point ACI data structures to the the setup data that the nRFgo studio
-   * generated for the nRF8001 */
-  if (NULL != services_pipe_type_mapping) {
-    aci_state.aci_setup_info.services_pipe_type_mapping =
-      &services_pipe_type_mapping[0];
-  } else {
-    aci_state.aci_setup_info.services_pipe_type_mapping = NULL;
-  }
-
-  aci_state.aci_setup_info.number_of_pipes = NUMBER_OF_PIPES;
-
   lib_aci_init (&aci_state);
 
   /* Reset nRF if the rdyn line is high */
