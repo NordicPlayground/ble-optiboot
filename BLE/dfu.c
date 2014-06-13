@@ -6,7 +6,6 @@
 
 #include "lib_aci.h"
 #include "dfu.h"
-#include "services.h"
 
 static void dfu_data_pkt_handle (aci_state_t *aci_state,
     aci_evt_t *aci_evt);
@@ -26,6 +25,7 @@ static uint16_t packets_received;
 static uint16_t page;
 static uint8_t page_buffer[SPM_PAGESIZE];
 static uint8_t page_index;
+static uint8_t pipes[3];
 
 /* Send receive notification to the BLE controller */
 static void m_notify (aci_state_t *aci_state)
@@ -45,8 +45,7 @@ static bool m_send (aci_state_t *aci_state, uint8_t *buff, uint8_t buff_len)
 {
   bool status;
 
-  if (!lib_aci_is_pipe_available (aci_state,
-      PIPE_DEVICE_FIRMWARE_UPDATE_BLE_SERVICE_DFU_CONTROL_POINT_TX)) {
+  if (!lib_aci_is_pipe_available (aci_state, pipes[1])) {
     return false;
   }
 
@@ -55,9 +54,7 @@ static bool m_send (aci_state_t *aci_state, uint8_t *buff, uint8_t buff_len)
     return false;
   }
 
-  status = lib_aci_send_data(
-        PIPE_DEVICE_FIRMWARE_UPDATE_BLE_SERVICE_DFU_CONTROL_POINT_TX, buff,
-        buff_len);
+  status = lib_aci_send_data(pipes[1], buff, buff_len);
 
   if (status)
   {
@@ -155,7 +152,7 @@ static void dfu_data_pkt_handle (aci_state_t *aci_state, aci_evt_t *aci_evt)
 /* Receive and store the firmware image size */
 static void dfu_image_size_set (aci_state_t *aci_state, aci_evt_t *aci_evt)
 {
-  const uint8_t pipe = PIPE_DEVICE_FIRMWARE_UPDATE_BLE_SERVICE_DFU_CONTROL_POINT_TX;
+  const uint8_t pipe = pipes[1];
   const uint8_t byte_idx = pipe / 8;
   static uint8_t response[] = {OP_CODE_RESPONSE, BLE_DFU_START_PROCEDURE,
     BLE_DFU_RESP_VAL_SUCCESS};
@@ -225,9 +222,10 @@ static void dfu_notification_set (aci_state_t *aci_state,
 }
 
 /* Initialize the state machine */
-void dfu_init (void)
+void dfu_init (uint8_t *ppipes)
 {
   state = ST_IDLE;
+  memcpy(pipes, ppipes, 3);
 }
 
 /* Update the state machine according to the event in aci_evt */
@@ -240,11 +238,11 @@ void dfu_update (aci_state_t *aci_state, aci_evt_t *aci_evt)
   pipe = rx_data->pipe_number;
 
   /* Incoming data packet */
-  if (pipe == PIPE_DEVICE_FIRMWARE_UPDATE_BLE_SERVICE_DFU_PACKET_RX) {
+  if (pipe == pipes[0]) {
     event = DFU_PACKET_RX;
   }
   /* Incoming control point */
-  else if (pipe == PIPE_DEVICE_FIRMWARE_UPDATE_BLE_SERVICE_DFU_CONTROL_POINT_RX_ACK_AUTO) {
+  else if (pipe == pipes[2]) {
     event = rx_data->aci_data[0];
   }
 

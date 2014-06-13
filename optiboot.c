@@ -218,7 +218,6 @@ asm("  .section .version\n"
 #include "boot.h"
 
 /* Bluetooth files */
-#include "BLE/services.h"
 #include "BLE/lib_aci.h"
 #include "BLE/aci_evts.h"
 #include "BLE/dfu.h"
@@ -313,7 +312,7 @@ int main(void) __attribute__ ((OS_main)) __attribute__ ((section (".init9")));
 static void hardware_init (void);
 static void uart_update (void);
 static void ble_init (void);
-static uint8_t ble_update (void);
+static uint8_t ble_update (uint8_t *pipes);
 static void putch(uint8_t ch);
 static uint8_t getch(void);
 static void getNch(uint8_t count);
@@ -435,11 +434,12 @@ void application_jump_check (void)
 int main (void)
 {
   uint8_t ch;
+  uint8_t pipes[] = {8,9,10};
   hal_aci_evt_t aci_data;
 
   hardware_init ();
   ble_init ();
-  dfu_init ();
+  dfu_init (pipes);
 
   boot_key = BOOTLOADER_KEY;
 
@@ -453,11 +453,11 @@ int main (void)
      * received character is among the STK500 constants, and enter the UART
      * bootloader procedure if it is
     */
-    if (ble_update ()) {
+    if (ble_update (pipes)) {
 
       dfu_update(&aci_state, &(aci_data.evt));
       for (;;) {
-        (void)ble_update ();
+        (void)ble_update (pipes);
       }
     } else if (ch == STK_GET_SYNC) {
       verifySpace ();
@@ -515,6 +515,7 @@ static void hardware_init (void)
 static void ble_init (void)
 {
 #ifdef SERVICES_PIPE_TYPE_MAPPING_CONTENT
+  #define NUMBER_OF_PIPES 15
   static services_pipe_type_mapping_t
     services_pipe_type_mapping[NUMBER_OF_PIPES] =
       SERVICES_PIPE_TYPE_MAPPING_CONTENT;
@@ -734,7 +735,7 @@ static void uart_update (void)
   }
 }
 
-static uint8_t ble_update (void)
+static uint8_t ble_update (uint8_t *pipes)
 {
   hal_aci_evt_t aci_data;
   aci_evt_t *aci_evt;
@@ -786,8 +787,8 @@ static uint8_t ble_update (void)
   case ACI_EVT_DATA_RECEIVED:
     /* If data received is on either of the DFU pipes, return success */
     pipe = aci_evt->params.data_received.rx_data.pipe_number;
-    if (pipe == PIPE_DEVICE_FIRMWARE_UPDATE_BLE_SERVICE_DFU_PACKET_RX ||
-        pipe == PIPE_DEVICE_FIRMWARE_UPDATE_BLE_SERVICE_DFU_CONTROL_POINT_RX_ACK_AUTO) {
+    if (pipe == pipes[0] ||
+        pipe == pipes[2]) {
       dfu_mode = 1;
     }
 

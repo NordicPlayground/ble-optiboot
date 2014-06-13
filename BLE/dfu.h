@@ -42,7 +42,7 @@
 #define BLE_DFU_RESP_VAL_CRC_ERROR       5
 #define BLE_DFU_RESP_VAL_OPER_FAILED     6
 
-void dfu_init (void);
+void dfu_init (uint8_t *ppipes);
 void dfu_update (aci_state_t *aci_state, aci_evt_t *aci_evt);
 
 #endif /* DFU_H_ */
