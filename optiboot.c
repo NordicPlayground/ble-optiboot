@@ -312,7 +312,6 @@ asm("  .section .version\n"
 int main(void) __attribute__ ((OS_main)) __attribute__ ((section (".init9")));
 static void hardware_init (void);
 static void uart_update (void);
-static uint8_t uart_validate_byte (uint8_t ch);
 static void ble_init (void);
 static uint8_t ble_update (void);
 static void putch(uint8_t ch);
@@ -460,7 +459,7 @@ int main (void)
       for (;;) {
         (void)ble_update ();
       }
-    } else if (uart_validate_byte (ch)) {
+    } else if (ch == STK_GET_SYNC) {
       verifySpace ();
       uart_update ();
     }
@@ -733,52 +732,6 @@ static void uart_update (void)
     }
     putch(STK_OK);
   }
-}
-
-static uint8_t uart_validate_byte (uint8_t ch)
-{
-  uint8_t ret = 0;
-
-  if (ch == STK_OK              ||
-      ch == STK_FAILED          ||
-      ch == STK_UNKNOWN         ||
-      ch == STK_NODEVICE        ||
-      ch == ADC_CHANNEL_ERROR   ||
-      ch == ADC_MEASURE_OK      ||
-      ch == PWM_CHANNEL_ERROR   ||
-      ch == PWM_ADJUST_OK       ||
-      ch == CRC_EOP             ||
-      ch == STK_GET_SYNC        ||
-      ch == STK_GET_SIGN_ON     ||
-      ch == STK_SET_PARAMETER   ||
-      ch == STK_GET_PARAMETER   ||
-      ch == STK_SET_DEVICE      ||
-      ch == STK_SET_DEVICE_EXT  ||
-      ch == STK_ENTER_PROGMODE  ||
-      ch == STK_LEAVE_PROGMODE  ||
-      ch == STK_CHIP_ERASE      ||
-      ch == STK_CHECK_AUTOINC   ||
-      ch == STK_LOAD_ADDRESS    ||
-      ch == STK_UNIVERSAL       ||
-      ch == STK_PROG_FLASH      ||
-      ch == STK_PROG_DATA       ||
-      ch == STK_PROG_FUSE       ||
-      ch == STK_PROG_LOCK       ||
-      ch == STK_PROG_PAGE       ||
-      ch == STK_PROG_FUSE_EXT   ||
-      ch == STK_READ_FLASH      ||
-      ch == STK_READ_DATA       ||
-      ch == STK_READ_FUSE       ||
-      ch == STK_READ_LOCK       ||
-      ch == STK_READ_PAGE       ||
-      ch == STK_READ_SIGN       ||
-      ch == STK_READ_OSCCAL     ||
-      ch == STK_READ_FUSE_EXT   ||
-      ch == STK_READ_OSCCAL_EXT) {
-        ret = 1;
-      }
-
-  return ret;
 }
 
 static uint8_t ble_update (void)
