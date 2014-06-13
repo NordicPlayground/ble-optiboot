@@ -27,8 +27,6 @@
 #include "aci_queue.h"
 #include "pins_arduino.h"
 
-#define NUM_PIPES 3
-
 static inline void m_aci_event_check (void);
 static inline void m_aci_reqn_disable (void);
 static inline void m_aci_reqn_enable (void);
