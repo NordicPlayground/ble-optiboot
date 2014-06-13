@@ -27,21 +27,6 @@ static uint16_t page;
 static uint8_t page_buffer[SPM_PAGESIZE];
 static uint8_t page_index;
 
-/* DFU command point op codes */
-enum
-{
-    OP_CODE_START_DFU            = 1,   /* 'Start DFU' */
-    OP_CODE_RECEIVE_INIT         = 2,   /* 'Initialize DFU parameters' */
-    OP_CODE_RECEIVE_FW           = 3,   /* 'Receive firmware image' */
-    OP_CODE_VALIDATE             = 4,   /* 'Validate firmware' */
-    OP_CODE_ACTIVATE_N_RESET     = 5,   /* 'Activate & Reset' */
-    OP_CODE_SYS_RESET            = 6,   /* 'Reset System' */
-    OP_CODE_IMAGE_SIZE_REQ       = 7,   /* 'Report received image size' .*/
-    OP_CODE_PKT_RCPT_NOTIF_REQ   = 8,   /* 'Request packet rcpt notification.*/
-    OP_CODE_RESPONSE             = 16,  /* 'Response.*/
-    OP_CODE_PKT_RCPT_NOTIF       = 17   /* 'Packets Receipt Notification'.*/
-};
-
 /* Send receive notification to the BLE controller */
 static void m_notify (aci_state_t *aci_state)
 {
