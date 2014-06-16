@@ -28,6 +28,7 @@
 #include "pins_arduino.h"
 
 static inline void m_aci_event_check (void);
+static inline uint8_t m_aci_rdyn (void);
 static inline void m_aci_reqn_disable (void);
 static inline void m_aci_reqn_enable (void);
 static inline void m_spi_init (void);
@@ -53,7 +54,7 @@ static void m_aci_event_check(void)
   /* If the ready line is disabled and we have pending messages outgoing we
    * enable the request line
   */
-  if (!hal_aci_tl_ready())
+  if (!m_aci_rdyn())
   {
     if (!aci_queue_is_empty(&aci_tx_q))
     {
@@ -89,6 +90,14 @@ static void m_aci_event_check(void)
   }
 
   return;
+}
+
+/* Returns true if the rdyn line is low */
+static inline uint8_t m_aci_rdyn (void)
+{
+  volatile uint8_t *rdyn_in = pin_to_input (pins->rdyn_pin);
+
+  return !(*rdyn_in & pin_to_bit_mask(pins->rdyn_pin));
 }
 
 static inline void m_aci_reqn_disable (void)
@@ -168,7 +177,7 @@ static void m_spi_init (void)
   *rdyn_out |= pin_to_bit_mask(pins->rdyn_pin);
 
   /* Configure SPI registers */
-  SPCR |= pin_to_bit_mask(SPE) | _BV(DORD) | _BV(MSTR) | _BV(SPI2X) | _BV(SPR0);
+  SPCR |= _BV(SPE) | _BV(DORD) | _BV(MSTR) | _BV(SPI2X) | _BV(SPR0);
 }
 
 static uint8_t m_spi_readwrite(const uint8_t aci_byte)
@@ -180,15 +189,25 @@ static uint8_t m_spi_readwrite(const uint8_t aci_byte)
 
 void hal_aci_tl_init(aci_pins_t *aci_pins)
 {
-  /* Set local pin struct pointer */
-  pins = aci_pins;
-
   /* Initialize the ACI Command queue. */
   aci_queue_init(&aci_tx_q);
   aci_queue_init(&aci_rx_q);
 
+  /* Set local pin struct pointer */
+  pins = aci_pins;
+
   /* Set up SPI */
   m_spi_init ();
+
+  /* If the nRF8001 hasn't pulled the ready line low, it indicates some
+   * message is pending. This should have been handled before jumping from the
+   * application to bootloader. As we're received an unexpected message we are
+   * in an unknown state and must reset the nRF8001.
+  */
+  if (!m_aci_rdyn())
+  {
+    hal_aci_tl_pin_reset();
+  }
 }
 
 bool hal_aci_tl_send(hal_aci_data_t *p_aci_cmd)
@@ -239,13 +258,6 @@ bool hal_aci_tl_event_get(hal_aci_data_t *p_aci_data)
   return false;
 }
 
-bool hal_aci_tl_ready (void)
-{
-  volatile uint8_t *rdyn_in = pin_to_input (pins->rdyn_pin);
-
-  return !(*rdyn_in & pin_to_bit_mask(pins->rdyn_pin));
-}
-
 void hal_aci_tl_pin_reset(void)
 {
   volatile uint8_t *reset_out = pin_to_output (pins->reset_pin);
@@ -261,5 +273,5 @@ void hal_aci_tl_pin_reset(void)
   m_spi_init ();
 
   /* Wait for the nRF8001 to get hold of its lines as the lines float for a few ms after reset */
-  _delay_ms(30);
+  _delay_ms(65);
 }

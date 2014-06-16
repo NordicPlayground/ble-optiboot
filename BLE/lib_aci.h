@@ -130,11 +130,6 @@ typedef struct aci_state_t
 /** @name Functions for library management */
 /* @{ */
 
-/** @brief Function to tell if the nRF8001 is ready to receive data.
- *  @details Returns true if the nRF8001 is ready, or false.
- */
-bool lib_aci_ready(void);
-
 /** @brief Function to pin reset the nRF8001
  *  @details Pin resets the nRF8001 also handles differences between
  *    development boards

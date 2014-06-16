@@ -114,12 +114,6 @@ bool hal_aci_tl_send(hal_aci_data_t *aci_buffer);
  */
 bool hal_aci_tl_event_get(hal_aci_data_t *p_aci_data);
 
-/** @brief Check if the nRF8001 is ready to receive data.
- *  @details
- *  This function returns true if the nRF8001s ready line is low.
- */
-bool hal_aci_tl_ready(void);
-
 /** @brief Pin reset the nRF8001
  *  @details
  *  The reset line of the nF8001 needs to kept low for 200 ns.

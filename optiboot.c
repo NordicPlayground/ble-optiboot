@@ -311,7 +311,6 @@ asm("  .section .version\n"
 int main(void) __attribute__ ((OS_main)) __attribute__ ((section (".init9")));
 static void hardware_init (void);
 static void uart_update (void);
-static void ble_init (void);
 static uint8_t ble_update (uint8_t *pipes);
 static void putch(uint8_t ch);
 static uint8_t getch(void);
@@ -454,7 +453,7 @@ int main (void)
   eeprom_read_block ((void *) &pipes, pipes_addr, 3);
 
   hardware_init ();
-  ble_init ();
+  lib_aci_init (&aci_state);
   dfu_init (pipes);
 
   boot_key = BOOTLOADER_KEY;
@@ -520,23 +519,6 @@ static void hardware_init (void)
   /* Set TX pin as output */
   UART_DDR |= _BV(UART_TX_BIT);
 #endif
-
-  /* Reset nRF if the rdyn line is high */
-  if (lib_aci_ready())
-  {
-    lib_aci_pin_reset ();
-  }
-}
-
-static void ble_init (void)
-{
-  lib_aci_init (&aci_state);
-
-  /* Reset nRF if the rdyn line is high */
-  if (lib_aci_ready())
-  {
-    lib_aci_pin_reset ();
-  }
 }
 
 static uint8_t ble_update (uint8_t *pipes)
