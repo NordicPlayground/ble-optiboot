@@ -440,6 +440,8 @@ int main (void)
   const uint8_t *credit_addr = (uint8_t *) 12;
   const uint8_t *pipes_addr = (uint8_t *) 13;
 
+  hardware_init ();
+
   /* Read pin data */
   eeprom_read_block ((void *) &aci_state.aci_pins, pins_addr,
       sizeof(aci_pins_t));
@@ -452,8 +454,8 @@ int main (void)
   /* Read pipe data */
   eeprom_read_block ((void *) &pipes, pipes_addr, 3);
 
-  hardware_init ();
   lib_aci_init (&aci_state);
+
   dfu_init (pipes);
 
   boot_key = BOOTLOADER_KEY;
