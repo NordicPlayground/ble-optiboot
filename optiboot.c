@@ -324,6 +324,7 @@ static void uartDelay() __attribute__ ((naked));
 
 /* BLE stuff */
 static struct aci_state_t aci_state;
+static uint8_t dfu_mode;
 
 #define BOOTLOADER_KEY 0xDC42
 uint16_t boot_key __attribute__((section (".noinit")));
@@ -471,7 +472,6 @@ int main (void)
      * bootloader procedure if it is
     */
     if (ble_update (pipes)) {
-
       dfu_update(&aci_state, &(aci_data.evt));
       for (;;) {
         (void)ble_update (pipes);
@@ -527,17 +527,13 @@ static uint8_t ble_update (uint8_t *pipes)
 {
   hal_aci_evt_t aci_data;
   aci_evt_t *aci_evt;
-  uint8_t dfu_mode;
   uint8_t pipe;
 
   if (!lib_aci_event_get(&aci_state, &aci_data)) {
     return 0;
   }
 
-  watchdogReset();
-
   aci_evt = &(aci_data.evt);
-  dfu_mode = 0;
 
   switch(aci_evt->evt_opcode) {
   case ACI_EVT_DEVICE_STARTED:
@@ -573,14 +569,16 @@ static uint8_t ble_update (uint8_t *pipes)
     break;
 
   case ACI_EVT_DATA_RECEIVED:
-    /* If data received is on either of the DFU pipes, return success */
+    /* If data received is on either of the DFU pipes, we enter DFU mode. */
     pipe = aci_evt->params.data_received.rx_data.pipe_number;
-    if (pipe == pipes[0] ||
-        pipe == pipes[2]) {
+    if (!dfu_mode &&
+        (pipe == pipes[0] || pipe == pipes[2])) {
+
       dfu_mode = 1;
     }
 
     if (dfu_mode) {
+      watchdogReset();
       dfu_update(&aci_state, aci_evt);
     }
     break;
