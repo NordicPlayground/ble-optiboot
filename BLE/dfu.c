@@ -9,6 +9,8 @@
 
 static void dfu_data_pkt_handle (aci_state_t *aci_state,
     aci_evt_t *aci_evt);
+static void dfu_init_pkt_handle (aci_state_t *aci_state,
+    aci_evt_t *aci_evt);
 static void dfu_image_size_set (aci_state_t *aci_state, aci_evt_t *aci_evt);
 static void dfu_image_validate (aci_state_t *aci_state, aci_evt_t *aci_evt);
 static void dfu_reset (aci_state_t *aci_state, aci_evt_t *aci_evt);
@@ -143,6 +145,17 @@ static void dfu_data_pkt_handle (aci_state_t *aci_state, aci_evt_t *aci_evt)
   }
 }
 
+/* Receive and process an init packet */
+static void dfu_init_pkt_handle (aci_state_t *aci_state, aci_evt_t *aci_evt)
+{
+  static uint8_t response[] = {OP_CODE_RESPONSE,
+     BLE_DFU_INIT_PROCEDURE,
+     BLE_DFU_RESP_VAL_SUCCESS};
+
+  /* Send init received notification */
+  m_send (aci_state, response, sizeof(response));
+}
+
 /* Receive and store the firmware image size */
 static void dfu_image_size_set (aci_state_t *aci_state, aci_evt_t *aci_evt)
 {
@@ -247,6 +260,9 @@ void dfu_update (aci_state_t *aci_state, aci_evt_t *aci_evt)
       {
         case ST_IDLE:
           dfu_image_size_set(aci_state, aci_evt);
+          break;
+        case ST_RX_INIT_PKT:
+          dfu_init_pkt_handle(aci_state, aci_evt);
           break;
         case ST_RX_DATA_PKT:
           dfu_data_pkt_handle(aci_state, aci_evt);
