@@ -515,7 +515,7 @@ static void hardware_init (void)
 #endif
 
   /* Set up watchdog to trigger after 1000ms */
-  watchdogConfig(WATCHDOG_8S);
+  watchdogConfig(WATCHDOG_2S);
 
 #ifdef SOFT_UART
   /* Set TX pin as output */
