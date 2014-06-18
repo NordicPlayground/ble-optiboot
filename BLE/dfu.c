@@ -65,13 +65,13 @@ static bool m_send (aci_state_t *aci_state, uint8_t *buff, uint8_t buff_len)
 }
 
 /* Write the contents of buf to the given flash page */
-static void m_write_page (uint16_t page, uint8_t *buff)
+static void m_write_page (uint16_t page_num, uint8_t *buff)
 {
   uint16_t i;
   uint16_t word;
 
   /* Erase flash page, then wait while the memory is written */
-  __boot_page_erase_short (page);
+  __boot_page_erase_short (page_num);
   boot_spm_busy_wait ();
 
   for (i = 0; i < SPM_PAGESIZE; i += 2)
@@ -80,11 +80,11 @@ static void m_write_page (uint16_t page, uint8_t *buff)
       word = *buff++;
       word += (*buff++) << 8;
 
-      __boot_page_fill_short (page + i, word);
+      __boot_page_fill_short (page_num + i, word);
   }
 
   /* Store buffer in flash page, then wait while the memory is written */
-  __boot_page_write_short (page);
+  __boot_page_write_short (page_num);
   boot_spm_busy_wait();
 
   /* Reenable RWW-section again. We need this if we want to jump back
@@ -109,6 +109,12 @@ static void dfu_data_pkt_handle (aci_state_t *aci_state, aci_evt_t *aci_evt)
   uint8_t bytes_received = aci_evt->len-2;
   uint8_t i;
 
+  /* Send notification for every "notify_interval" number of packets */
+  if (0 == (++packets_received % notify_interval))
+  {
+      m_notify (aci_state);
+  }
+
   /* Write received data to page buffer. When the buffer is full, write it to
    * flash.
    */
@@ -125,22 +131,10 @@ static void dfu_data_pkt_handle (aci_state_t *aci_state, aci_evt_t *aci_evt)
     }
   }
 
-  /* Send notification for every "notify_interval" number of packets */
-  if (0 == (++packets_received % notify_interval))
-  {
-      m_notify (aci_state);
-  }
-
   /* Check if we've received the entire firmware image */
   total_bytes_received += bytes_received;
   if (firmware_len == total_bytes_received)
   {
-    /* Fill the rest of the page buffer */
-    for (i = page_index; i < SPM_PAGESIZE; i++)
-    {
-      page_buffer[page_index++] = 0xFF;
-    }
-
     /* Write final page to flash */
     m_write_page (page++, page_buffer);
 
