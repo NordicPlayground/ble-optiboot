@@ -325,6 +325,8 @@ static void uartDelay() __attribute__ ((naked));
 /* BLE stuff */
 static struct aci_state_t aci_state;
 static uint8_t dfu_mode;
+uint16_t conn_timeout;
+uint16_t conn_interval;
 
 #define BOOTLOADER_KEY 0xDC42
 uint16_t boot_key __attribute__((section (".noinit")));
@@ -440,6 +442,8 @@ int main (void)
   const uint8_t *pins_addr = (uint8_t *) 0;
   const uint8_t *credit_addr = (uint8_t *) 12;
   const uint8_t *pipes_addr = (uint8_t *) 13;
+  const uint8_t *conn_timeout_addr = (uint8_t *) 16;
+  const uint8_t *conn_interval_addr = (uint8_t *) 18;
 
   hardware_init ();
 
@@ -454,6 +458,12 @@ int main (void)
 
   /* Read pipe data */
   eeprom_read_block ((void *) &pipes, pipes_addr, 3);
+
+  /* Read connection timeout */
+  eeprom_read_block ((void *) &conn_timeout, conn_timeout_addr, 2);
+
+  /* Read connection advertise interval */
+  eeprom_read_block ((void *) &conn_interval, conn_interval_addr, 2);
 
   lib_aci_init (&aci_state);
 
@@ -546,8 +556,8 @@ static uint8_t ble_update (uint8_t *pipes)
           _delay_ms (20);
       }
       else {
-        lib_aci_connect (180,   /* timeout in seconds */
-                         0x0050 /* advertising interval 50ms*/);
+        lib_aci_connect (conn_timeout,   /* timeout in seconds */
+                         conn_interval /* advertising interval 50ms*/);
       }
     }
     break; /* ACI Device Started Event */
@@ -588,8 +598,8 @@ static uint8_t ble_update (uint8_t *pipes)
     break;
 
   case ACI_EVT_HW_ERROR:
-    lib_aci_connect (180,   /* timeout in seconds */
-                     0x0050 /* advertising interval 50ms*/);
+    lib_aci_connect (conn_timeout,   /* timeout in seconds */
+                     conn_interval /* advertising interval 50ms*/);
   break;
 
   case ACI_EVT_PIPE_STATUS:
