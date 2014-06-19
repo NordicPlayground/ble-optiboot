@@ -1,15 +1,37 @@
 This directory contains the Optiboot small bootloader for AVR
 microcontrollers, somewhat modified specifically for the Arduino
-environment.
+environment, and heavily modified to support transfer using
+Bluetooth Low Energy.
 
 Optiboot is more fully described here: http://code.google.com/p/optiboot/
 and is the work of Peter Knight (aka Cathedrow), building on work of Jason P
 Kyle, Spiff, and Ladyada.  Arduino-specific modification are by Bill
-Westfield (aka WestfW)
+Westfield (aka WestfW). BLE-specific modifications are by Nordic Semiconductor
+ASA.
 
 Arduino-specific issues are tracked as part of the Arduino project
 at http://code.google.com/p/arduino
 
+------------------------------------------------------------
+Support for Bluetooth Low Energy
+
+Experimental support for firmware transfer using Bluetooth Low Energy has been
+added. This feature depends on information loaded into EEPROM either by an
+application, or after flashing this bootloader to the device. If flashing
+multiple devices, it is recommended to first run an application on one device
+and then download the EEPROM from this so the EEPROM can be easily flashed to
+other devices. This is done for flexibility, but if desired this information
+can easily be hardcoded in the bootloader.
+
+When the bootloader is run, it will wait for activity on either UART or BLE
+for a short time before loading the application. If activity indicating a
+firmware transfer is detected on either link, the bootloader will proceed
+with the update procedure on the first link that showed activity, and will
+ignore the other link, and proceed to jump to the application when the
+transfer is complete.
+
+To allow room for the necessary additions, LED blinking was removed from
+the bootloader.
 
 ------------------------------------------------------------
 Building optiboot for Arduino.
