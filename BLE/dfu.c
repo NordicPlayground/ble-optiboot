@@ -117,8 +117,8 @@ static void dfu_data_pkt_handle (aci_state_t *aci_state, aci_evt_t *aci_evt)
       m_notify (aci_state);
   }
 
-  /* Write received data to page buffer. When the buffer is full, write it to
-   * flash.
+  /* Write received data to page buffer. When the buffer is full, write the
+   * buffer to flash.
    */
   data_received = (aci_evt_params_data_received_t *) &(aci_evt->params);
   for (i = 0; i < bytes_received; i++)
