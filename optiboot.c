@@ -488,9 +488,11 @@ int main (void)
      * since we validate the data we pull before acting on it. */
     ch = UART_UDR;
 
-    /* Try to get an ACI event from the BLE device. Then, check if the
-     * received character is among the STK500 constants, and enter the UART
-     * bootloader procedure if it is
+    /* Try to get an ACI event from the BLE device. If the event indicates the
+     * start of a BLE transfer, we proceed to use BLE for the lifetime of the
+     * program.
+     * If not we, check if the character received on UART is a sync event. If
+     * this is the case, we use UART for the lifetime of the program.
     */
     if (valid_ble == 1 && ble_update (pipes)) {
       dfu_update(&aci_state, &(aci_data.evt));
@@ -535,7 +537,7 @@ static void hardware_init (void)
 #endif
 #endif
 
-  /* Set up watchdog to trigger after 1000ms */
+  /* Set up watchdog to trigger after 2000ms */
   watchdogConfig(WATCHDOG_2S);
 
 #ifdef SOFT_UART
@@ -544,6 +546,11 @@ static void hardware_init (void)
 #endif
 }
 
+/* Get and process events from the BLE link. If we detect an event indicating
+ * that we are about to receive a new firmware image on BLE, the function
+ * returns 1 to indicate this, at which point main() will proceed to use BLE
+ * for the firmware transfer
+ */
 static uint8_t ble_update (uint8_t *pipes)
 {
   hal_aci_evt_t aci_data;
@@ -574,6 +581,9 @@ static uint8_t ble_update (uint8_t *pipes)
     break; /* ACI Device Started Event */
 
   case ACI_EVT_CONNECTED:
+    /* Set up watchdog to trigger after 4000ms */
+    watchdogConfig(WATCHDOG_4S);
+
     aci_state.data_credit_available = aci_state.data_credit_total;
     break;
 
@@ -626,6 +636,9 @@ static uint8_t ble_update (uint8_t *pipes)
   return dfu_mode;
 }
 
+/* If main() detects a firmware transfer on UART, this function is run in a
+ * loop to process the incoming data and write the firmware to flash
+ */
 static void uart_update (void)
 {
   uint8_t ch;
