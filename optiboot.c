@@ -432,42 +432,53 @@ void application_jump_check (void)
 # define UART_UDR UDR3
 #endif
 
-/* main program starts here */
+/* In main we set up the hardware, read BLE information from EEPROM if it is
+ * available, and then continuously poll on both the UART and the BLE link
+ * for a hex file transfer. When valid activity is detected on either link,
+ * we proceed with a transfer on that link
+ */
 int main (void)
 {
+  uint8_t valid_ble;
   uint8_t ch;
   uint8_t pipes[3];
   hal_aci_evt_t aci_data;
 
-  const uint8_t *pins_addr = (uint8_t *) 0;
-  const uint8_t *credit_addr = (uint8_t *) 12;
-  const uint8_t *pipes_addr = (uint8_t *) 13;
-  const uint8_t *conn_timeout_addr = (uint8_t *) 16;
-  const uint8_t *conn_interval_addr = (uint8_t *) 18;
+  const uint8_t *valid_addr = (uint8_t *) 0;
+  const uint8_t *pins_addr = (uint8_t *) 1;
+  const uint8_t *credit_addr = (uint8_t *) 13;
+  const uint8_t *pipes_addr = (uint8_t *) 14;
+  const uint8_t *conn_timeout_addr = (uint8_t *) 17;
+  const uint8_t *conn_interval_addr = (uint8_t *) 19;
 
   hardware_init ();
 
-  /* Read pin data */
-  eeprom_read_block ((void *) &aci_state.aci_pins, pins_addr,
-      sizeof(aci_pins_t));
+  eeprom_read_block ((void *) &valid_ble, valid_addr, 1);
 
-  /* Read credit data */
-  eeprom_read_block ((void *) &(aci_state.data_credit_total), credit_addr,
-      1);
-  aci_state.data_credit_available = aci_state.data_credit_total;
+  if (valid_ble == 1)
+  {
+    /* Read pin data */
+    eeprom_read_block ((void *) &aci_state.aci_pins, pins_addr,
+        sizeof(aci_pins_t));
 
-  /* Read pipe data */
-  eeprom_read_block ((void *) &pipes, pipes_addr, 3);
+    /* Read credit data */
+    eeprom_read_block ((void *) &(aci_state.data_credit_total), credit_addr,
+        1);
+    aci_state.data_credit_available = aci_state.data_credit_total;
 
-  /* Read connection timeout */
-  eeprom_read_block ((void *) &conn_timeout, conn_timeout_addr, 2);
+    /* Read pipe data */
+    eeprom_read_block ((void *) &pipes, pipes_addr, 3);
 
-  /* Read connection advertise interval */
-  eeprom_read_block ((void *) &conn_interval, conn_interval_addr, 2);
+    /* Read connection timeout */
+    eeprom_read_block ((void *) &conn_timeout, conn_timeout_addr, 2);
 
-  lib_aci_init (&aci_state);
+    /* Read connection advertise interval */
+    eeprom_read_block ((void *) &conn_interval, conn_interval_addr, 2);
 
-  dfu_init (pipes);
+    lib_aci_init (&aci_state);
+
+    dfu_init (pipes);
+  }
 
   boot_key = BOOTLOADER_KEY;
 
@@ -481,7 +492,7 @@ int main (void)
      * received character is among the STK500 constants, and enter the UART
      * bootloader procedure if it is
     */
-    if (ble_update (pipes)) {
+    if (valid_ble == 1 && ble_update (pipes)) {
       dfu_update(&aci_state, &(aci_data.evt));
       for (;;) {
         (void)ble_update (pipes);
