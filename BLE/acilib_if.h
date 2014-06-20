@@ -43,17 +43,6 @@
  */
 void acil_encode_cmd_connect(uint8_t *buffer, aci_cmd_params_connect_t *p_aci_cmd_params_connect);
 
-/** @brief Encode the ACI message to bond
- *
- *  @param[in,out]  buffer                 Pointer to ACI message buffer
- *  @param[in]      p_aci_cmd_params_bond  Pointer to the run parameters in ::aci_cmd_params_bond_t
- *
- *  @return         None
- */
-#if 0
-void acil_encode_cmd_bond(uint8_t *buffer, aci_cmd_params_bond_t *p_aci_cmd_params_bond);
-#endif
-
 /** @brief Encode the ACI message to disconnect
  *
  *  @param[in,out]  buffer                       Pointer to ACI message buffer
@@ -72,3 +61,5 @@ void acil_encode_cmd_disconnect(uint8_t *buffer, aci_cmd_params_disconnect_t *p_
  *  @return         None
  */
 void acil_encode_cmd_send_data(uint8_t *buffer, aci_cmd_params_send_data_t *p_aci_cmd_params_send_data_t, uint8_t data_size);
+
+#endif
