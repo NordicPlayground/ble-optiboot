@@ -16,19 +16,55 @@ at http://code.google.com/p/arduino
 Support for Bluetooth Low Energy
 
 Experimental support for firmware transfer using Bluetooth Low Energy has been
-added. This feature depends on information loaded into EEPROM either by an
-application, or after flashing this bootloader to the device. If flashing
-multiple devices, it is recommended to first run an application on one device
-and then download the EEPROM from this so the EEPROM can be easily flashed to
-other devices. This is done for flexibility, but if desired this information
-can easily be hardcoded in the bootloader.
+added. By default, the bootloader runs the normal optiboot routine in order to
+flash over UART. In order to flash using Bluetooth, the bootloader depends on
+SPI pin data and other information loaded into EEPROM, in order to use the
+nRF8001. If valid BLE configuration data is found in the EEPROM, Bluetooth
+transfer will be enabled, and either mode can be used.
 
-When the bootloader is run, it will wait for activity on either UART or BLE
-for a short time before loading the application. If activity indicating a
-firmware transfer is detected on either link, the bootloader will proceed
-with the update procedure on the first link that showed activity, and will
-ignore the other link, and proceed to jump to the application when the
-transfer is complete.
+When the bootloader is run, it will wait for activity on either UART or the
+nRF8001 SPI link for a short time, after which it will load the application.
+If a firmware transfer is detected on either link, the bootloader will proceed
+with the transfer on this link. After transfer, the application will be
+loaded.
+
+To start the application with a clean slate, we start it using a watchdog
+reset. To do this, a function runs in .init3 that determines if the
+application or the bootloader should be run after reset.  The same method can
+be used to jump from application to bootloader if a firmware transfer over
+Bluetooth is detected by an application. A special value is set in .noinit
+when the transfer is detected, and a watchdog reset is done. An example of
+this, named ble_uart_project_with_dfu_template, is included with the
+ble-sdk-arduino library. This also shows how to store the required information
+in EEPROM.
+
+To jump from application to bootloader, or from bootloader to application,
+the following procedure is used:
+
+1. Set boot_key (in .noinit) to BOOTLOADER_KEY
+2. Perform a watchdog reset
+3. In a function run from .init3, if reset was caused by watchdog, and
+   boot_key == BOOTLOADER_KEY,
+   execute ((void (*)(void)) BOOTLOADER_START_ADDR)();
+
+The EEPROM data is stored in the following format:
+
+=================================
+| valid data flag    (1 byte )  |
+---------------------------------
+| aci_pins_t         (12 bytes) |
+---------------------------------
+| total credit       (1 byte)   |
+---------------------------------
+| transfer pipes     (3 bytes)  |
+---------------------------------
+| connection timeout (2 bytes)  |
+---------------------------------
+| advertise interval (2 bytes)  |
+---------------------------------
+| crc16 value        (2 bytes)  |
+=================================
+
 
 To allow room for the necessary additions, LED blinking was removed from
 the bootloader.
