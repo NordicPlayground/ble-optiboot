@@ -309,7 +309,6 @@ asm("  .section .version\n"
  * generate any entry or exit code itself.
  */
 int main(void) __attribute__ ((OS_main)) __attribute__ ((section (".init9")));
-static void hardware_init (void);
 static void uart_update (void);
 static void ble_update (uint8_t *pipes);
 static void putch(uint8_t ch);
@@ -450,7 +449,42 @@ int main (void)
   const uint8_t *conn_timeout_addr = (uint8_t *) 17;
   const uint8_t *conn_interval_addr = (uint8_t *) 19;
 
-  hardware_init ();
+  /* After the zero init loop, this is the first code to run.
+   *
+   * This code makes the following assumptions:
+   *  No interrupts will execute
+   *  SP points to RAMEND
+   *  r1 contains zero
+   *
+   * If not, uncomment the following instructions:
+   * cli();
+   */
+  asm volatile ("clr __zero_reg__");
+#if defined(__AVR_ATmega8__) || defined (__AVR_ATmega32__)
+  SP=RAMEND;  /* This is done by hardware reset */
+#endif
+
+#ifndef SOFT_UART
+#if defined(__AVR_ATmega8__) || defined (__AVR_ATmega32__)
+  UCSRA = _BV(U2X); /* Double speed mode USART */
+  UCSRB = _BV(RXEN) | _BV(TXEN);  /* enable Rx & Tx */
+  UCSRC = _BV(URSEL) | _BV(UCSZ1) | _BV(UCSZ0);  /* config USART; 8N1 */
+  UBRRL = (uint8_t)( (F_CPU + BAUD_RATE * 4L) / (BAUD_RATE * 8L) - 1 );
+#else
+  UART_SRA = _BV(U2X0); /* Double speed mode USART0 */
+  UART_SRB = _BV(RXEN0) | _BV(TXEN0);
+  UART_SRC = _BV(UCSZ00) | _BV(UCSZ01);
+  UART_SRL = (uint8_t)( (F_CPU + BAUD_RATE * 4L) / (BAUD_RATE * 8L) - 1 );
+#endif
+#endif
+
+  /* Set up watchdog to trigger after 2000ms */
+  watchdogConfig(WATCHDOG_2S);
+
+#ifdef SOFT_UART
+  /* Set TX pin as output */
+  UART_DDR |= _BV(UART_TX_BIT);
+#endif
 
   eeprom_read_block ((void *) &valid_ble, valid_addr, 1);
 
@@ -504,46 +538,6 @@ int main (void)
       uart_update ();
     }
   }
-}
-
-static void hardware_init (void)
-{
-  /* After the zero init loop, this is the first code to run.
-   *
-   * This code makes the following assumptions:
-   *  No interrupts will execute
-   *  SP points to RAMEND
-   *  r1 contains zero
-   *
-   * If not, uncomment the following instructions:
-   * cli();
-   */
-  asm volatile ("clr __zero_reg__");
-#if defined(__AVR_ATmega8__) || defined (__AVR_ATmega32__)
-  SP=RAMEND;  /* This is done by hardware reset */
-#endif
-
-#ifndef SOFT_UART
-#if defined(__AVR_ATmega8__) || defined (__AVR_ATmega32__)
-  UCSRA = _BV(U2X); /* Double speed mode USART */
-  UCSRB = _BV(RXEN) | _BV(TXEN);  /* enable Rx & Tx */
-  UCSRC = _BV(URSEL) | _BV(UCSZ1) | _BV(UCSZ0);  /* config USART; 8N1 */
-  UBRRL = (uint8_t)( (F_CPU + BAUD_RATE * 4L) / (BAUD_RATE * 8L) - 1 );
-#else
-  UART_SRA = _BV(U2X0); /* Double speed mode USART0 */
-  UART_SRB = _BV(RXEN0) | _BV(TXEN0);
-  UART_SRC = _BV(UCSZ00) | _BV(UCSZ01);
-  UART_SRL = (uint8_t)( (F_CPU + BAUD_RATE * 4L) / (BAUD_RATE * 8L) - 1 );
-#endif
-#endif
-
-  /* Set up watchdog to trigger after 2000ms */
-  watchdogConfig(WATCHDOG_2S);
-
-#ifdef SOFT_UART
-  /* Set TX pin as output */
-  UART_DDR |= _BV(UART_TX_BIT);
-#endif
 }
 
 /* Get and process events from the BLE link. If we detect an event indicating
@@ -642,14 +636,6 @@ static void uart_update (void)
   uint8_t ch;
   uint16_t address;
   uint8_t length;
-  unsigned char which;
-  uint16_t newAddress;
-  uint8_t *bufPtr;
-  uint16_t addrPtr;
-  uint16_t a;
-#ifdef VIRTUAL_BOOT_PARTITION
-  uint16_t vect;
-#endif
 
   /* Forever loop */
   for (;;) {
@@ -657,7 +643,7 @@ static void uart_update (void)
     ch = getch();
 
     if(ch == STK_GET_PARAMETER) {
-      which = getch();
+      unsigned char which = getch();
       verifySpace();
       if (which == 0x82) {
         /*
@@ -684,6 +670,7 @@ static void uart_update (void)
     }
     else if(ch == STK_LOAD_ADDRESS) {
       /* LOAD ADDRESS */
+      uint16_t newAddress;
       newAddress = getch();
       newAddress = (newAddress & 0xff) | (getch() << 8);
 #ifdef RAMPZ
@@ -703,6 +690,8 @@ static void uart_update (void)
     /* Write memory, length is big endian and is in bytes */
     else if(ch == STK_PROG_PAGE) {
       /* PROGRAM PAGE - we support flash programming only, not EEPROM */
+      uint8_t *bufPtr;
+      uint16_t addrPtr;
       getch();
       length = getch();
       getch();
@@ -742,7 +731,7 @@ static void uart_update (void)
          */
 
         /* Move RESET vector to WDT vector */
-        vect = buff[0] | (buff[1]<<8);
+        uint16_t vect = buff[0] | (buff[1]<<8);
         rstVect = vect;
         wdtVect = buff[8] | (buff[9]<<8);
         vect -= 4; /* Instruction is a relative jump (rjmp), so recalculate. */
@@ -760,6 +749,7 @@ static void uart_update (void)
       addrPtr = (uint16_t)(void*)address;
       ch = SPM_PAGESIZE / 2;
       do {
+        uint16_t a;
         a = *bufPtr++;
         a |= (*bufPtr++) << 8;
         __boot_page_fill_short((uint16_t)(void*)addrPtr,a);
