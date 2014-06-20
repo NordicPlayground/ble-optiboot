@@ -547,9 +547,8 @@ static void hardware_init (void)
 }
 
 /* Get and process events from the BLE link. If we detect an event indicating
- * that we are about to receive a new firmware image on BLE, the function
- * returns 1 to indicate this, at which point main() will proceed to use BLE
- * for the firmware transfer
+ * that we are about to receive a new firmware image on BLE we set "ble_mode"
+ * to a true value.
  */
 static void ble_update (uint8_t *pipes)
 {
@@ -557,6 +556,7 @@ static void ble_update (uint8_t *pipes)
   aci_evt_t *aci_evt;
   uint8_t pipe;
 
+  /* Attempt to grab an event from the BLE message queue */
   if (!lib_aci_event_get(&aci_state, &aci_data)) {
     return;
   }
@@ -564,71 +564,71 @@ static void ble_update (uint8_t *pipes)
   aci_evt = &(aci_data.evt);
 
   switch(aci_evt->evt_opcode) {
-  case ACI_EVT_DEVICE_STARTED:
-    aci_state.data_credit_total =
-      aci_evt->params.device_started.credit_available;
-    if (aci_evt->params.device_started.device_mode == ACI_DEVICE_STANDBY) {
-      if (aci_evt->params.device_started.hw_error) {
-          /* Magic number used to make sure the HW error event
-           * is handled correctly. */
-          _delay_ms (20);
+    case ACI_EVT_DEVICE_STARTED:
+      aci_state.data_credit_total =
+        aci_evt->params.device_started.credit_available;
+      if (aci_evt->params.device_started.device_mode == ACI_DEVICE_STANDBY) {
+        if (aci_evt->params.device_started.hw_error) {
+            /* Magic number used to make sure the HW error event
+             * is handled correctly. */
+            _delay_ms (20);
+        }
+        else {
+          lib_aci_connect (conn_timeout, conn_interval);
+        }
       }
-      else {
-        lib_aci_connect (conn_timeout,   /* timeout in seconds */
-                         conn_interval /* advertising interval 50ms*/);
+      break; /* ACI Device Started Event */
+
+    case ACI_EVT_CONNECTED:
+      /* Extend the watchdog timeout so we have some more room to play */
+      watchdogConfig(WATCHDOG_4S);
+
+      /* We should have checked that this is true before we jumped into
+       * the bootloader. Hopefully we did.
+       */
+      aci_state.data_credit_available = aci_state.data_credit_total;
+      break;
+
+    case ACI_EVT_DATA_CREDIT:
+      aci_state.data_credit_available = aci_state.data_credit_available +
+                                        aci_evt->params.data_credit.credit;
+      break;
+
+    case ACI_EVT_PIPE_ERROR:
+      /* If we received a pipe error, some message got borked.
+       * All we can do is update our credit to reflect it
+       */
+      if (aci_evt->params.pipe_error.error_code !=
+          ACI_STATUS_ERROR_PEER_ATT_ERROR) {
+        aci_state.data_credit_available++;
       }
-    }
-    break; /* ACI Device Started Event */
+      break;
 
-  case ACI_EVT_CONNECTED:
-    /* Set up watchdog to trigger after 4000ms */
-    watchdogConfig(WATCHDOG_4S);
+    case ACI_EVT_DATA_RECEIVED:
+      /* If data received is on either of the DFU pipes, we enter DFU mode.
+       * We then update the DFU state machine to run the transfer.
+       */
+      pipe = aci_evt->params.data_received.rx_data.pipe_number;
+      if (pipe == pipes[0] || pipe == pipes[2]) {
+        if (!dfu_mode) {
+          dfu_mode = 1;
+        }
 
-    aci_state.data_credit_available = aci_state.data_credit_total;
-    break;
-
-  case ACI_EVT_DATA_CREDIT:
-    aci_state.data_credit_available = aci_state.data_credit_available +
-                                      aci_evt->params.data_credit.credit;
-    break;
-
-  case ACI_EVT_PIPE_ERROR:
-    if (aci_evt->params.pipe_error.error_code !=
-        ACI_STATUS_ERROR_PEER_ATT_ERROR) {
-      aci_state.data_credit_available++;
-    }
-    break;
-
-  case ACI_EVT_DATA_RECEIVED:
-    /* If data received is on either of the DFU pipes, we enter DFU mode. */
-    pipe = aci_evt->params.data_received.rx_data.pipe_number;
-    if (pipe == pipes[0] || pipe == pipes[2]) {
-      if (!dfu_mode) {
-        dfu_mode = 1;
+        watchdogReset();
+        dfu_update(&aci_state, aci_evt);
       }
+      break;
 
-      watchdogReset();
-      dfu_update(&aci_state, aci_evt);
-    }
+    case ACI_EVT_DISCONNECTED:
+      lib_aci_pin_reset ();
+      break;
+
+    case ACI_EVT_HW_ERROR:
+      lib_aci_connect (conn_timeout, conn_interval);
     break;
 
-  case ACI_EVT_DISCONNECTED:
-    lib_aci_pin_reset ();
-    break;
-
-  case ACI_EVT_HW_ERROR:
-    lib_aci_connect (conn_timeout,   /* timeout in seconds */
-                     conn_interval /* advertising interval 50ms*/);
-  break;
-
-  case ACI_EVT_PIPE_STATUS:
-    break;
-
-  case ACI_EVT_TIMING:
-    break;
-
-  default:
-    break;
+    default:
+      break;
   }
 
   return;
