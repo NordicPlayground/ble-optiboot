@@ -311,7 +311,7 @@ asm("  .section .version\n"
 int main(void) __attribute__ ((OS_main)) __attribute__ ((section (".init9")));
 static void hardware_init (void);
 static void uart_update (void);
-static uint8_t ble_update (uint8_t *pipes);
+static void ble_update (uint8_t *pipes);
 static void putch(uint8_t ch);
 static uint8_t getch(void);
 static void getNch(uint8_t count);
@@ -442,7 +442,6 @@ int main (void)
   uint8_t valid_ble;
   uint8_t ch;
   uint8_t pipes[3];
-  hal_aci_evt_t aci_data;
 
   const uint8_t *valid_addr = (uint8_t *) 0;
   const uint8_t *pins_addr = (uint8_t *) 1;
@@ -494,12 +493,13 @@ int main (void)
      * If not we, check if the character received on UART is a sync event. If
      * this is the case, we use UART for the lifetime of the program.
     */
-    if (valid_ble == 1 && ble_update (pipes)) {
-      dfu_update(&aci_state, &(aci_data.evt));
-      for (;;) {
-        (void)ble_update (pipes);
-      }
-    } else if (ch == STK_GET_SYNC) {
+    if (valid_ble == 1) {
+      do {
+        ble_update (pipes);
+      } while (dfu_mode);
+    }
+
+    if (ch == STK_GET_SYNC) {
       verifySpace ();
       uart_update ();
     }
@@ -551,14 +551,14 @@ static void hardware_init (void)
  * returns 1 to indicate this, at which point main() will proceed to use BLE
  * for the firmware transfer
  */
-static uint8_t ble_update (uint8_t *pipes)
+static void ble_update (uint8_t *pipes)
 {
   hal_aci_evt_t aci_data;
   aci_evt_t *aci_evt;
   uint8_t pipe;
 
   if (!lib_aci_event_get(&aci_state, &aci_data)) {
-    return 0;
+    return;
   }
 
   aci_evt = &(aci_data.evt);
@@ -602,13 +602,11 @@ static uint8_t ble_update (uint8_t *pipes)
   case ACI_EVT_DATA_RECEIVED:
     /* If data received is on either of the DFU pipes, we enter DFU mode. */
     pipe = aci_evt->params.data_received.rx_data.pipe_number;
-    if (!dfu_mode &&
-        (pipe == pipes[0] || pipe == pipes[2])) {
+    if (pipe == pipes[0] || pipe == pipes[2]) {
+      if (!dfu_mode) {
+        dfu_mode = 1;
+      }
 
-      dfu_mode = 1;
-    }
-
-    if (dfu_mode) {
       watchdogReset();
       dfu_update(&aci_state, aci_evt);
     }
@@ -633,7 +631,7 @@ static uint8_t ble_update (uint8_t *pipes)
     break;
   }
 
-  return dfu_mode;
+  return;
 }
 
 /* If main() detects a firmware transfer on UART, this function is run in a

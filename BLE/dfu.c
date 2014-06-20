@@ -7,60 +7,75 @@
 #include "lib_aci.h"
 #include "dfu.h"
 
-static void dfu_data_pkt_handle (aci_state_t *aci_state,
-    aci_evt_t *aci_evt);
-static void dfu_init_pkt_handle (aci_state_t *aci_state,
-    aci_evt_t *aci_evt);
-static void dfu_image_size_set (aci_state_t *aci_state, aci_evt_t *aci_evt);
-static void dfu_image_validate (aci_state_t *aci_state, aci_evt_t *aci_evt);
-static void dfu_reset (aci_state_t *aci_state, aci_evt_t *aci_evt);
+/*****************************************************************************
+* Local definitions
+*****************************************************************************/
 
-static void m_notify (aci_state_t *aci_state);
-static bool m_send (aci_state_t *aci_state, uint8_t *buff, uint8_t buff_len);
+static void dfu_data_pkt_handle (aci_evt_t *aci_evt);
+static void dfu_init_pkt_handle (aci_evt_t *aci_evt);
+static void dfu_image_size_set (aci_evt_t *aci_evt);
+static void dfu_image_validate (aci_evt_t *aci_evt);
+static void dfu_reset (aci_evt_t *aci_evt);
+
+static void m_notify ();
+static bool m_send (uint8_t *buff, uint8_t buff_len);
 static void m_write_page (uint16_t page, uint8_t *buff);
 
-static uint8_t state = ST_ANY;
-static uint32_t firmware_len;
-static uint16_t notify_interval;
-static uint32_t total_bytes_received;
-static uint16_t packets_received;
-static uint16_t page;
-static uint8_t page_buffer[SPM_PAGESIZE];
-static uint8_t page_index;
-static uint8_t pipes[3];
+/*****************************************************************************
+* Static Globals
+*****************************************************************************/
 
-/* Send receive notification to the BLE controller */
-static void m_notify (aci_state_t *aci_state)
+static aci_state_t *m_aci_state;
+static uint8_t      m_dfu_state = ST_ANY;
+static uint32_t     m_image_size;
+static uint16_t     m_pkt_notif_target;
+static uint16_t     m_pkt_notif_target_cnt;
+static uint32_t     m_num_of_firmware_bytes_rcvd;
+static uint16_t     m_page_address;
+static uint8_t      m_page_buff[SPM_PAGESIZE];
+static uint8_t      m_page_buff_index;
+static uint8_t      m_pipe_array[3];
+
+/*****************************************************************************
+* Static Functions
+*****************************************************************************/
+
+/* Send receive notification with number of bytes received */
+static void m_notify (void)
 {
   uint8_t response[] = {OP_CODE_PKT_RCPT_NOTIF,
     0,
-    (uint8_t) total_bytes_received,
-    (uint8_t) (total_bytes_received >> 8),
-    (uint8_t) (total_bytes_received >> 16),
-    (uint8_t) (total_bytes_received >> 24)};
+    (uint8_t) m_num_of_firmware_bytes_rcvd,
+    (uint8_t) (m_num_of_firmware_bytes_rcvd >> 8),
+    (uint8_t) (m_num_of_firmware_bytes_rcvd >> 16),
+    (uint8_t) (m_num_of_firmware_bytes_rcvd >> 24)};
 
-  m_send (aci_state, response, sizeof(response));
+  m_send (response, sizeof(response));
 }
 
 /* Transmit buffer_len number of bytes from buffer to the BLE controller */
-static bool m_send (aci_state_t *aci_state, uint8_t *buff, uint8_t buff_len)
+static bool m_send (uint8_t *buff, uint8_t buff_len)
 {
   bool status;
 
-  if (!lib_aci_is_pipe_available (aci_state, pipes[1])) {
+  /* Abort if the notification pipe isn't available */
+  if (!lib_aci_is_pipe_available (m_aci_state, m_pipe_array[1])) {
     return false;
   }
 
-  if (aci_state->data_credit_available == 0)
+  /* Abort if we don't have the necessary credit to transmit */
+  if (m_aci_state->data_credit_available == 0)
   {
     return false;
   }
 
-  status = lib_aci_send_data(pipes[1], buff, buff_len);
+  /* Put the notification message in the queue */
+  status = lib_aci_send_data(m_pipe_array[1], buff, buff_len);
 
+  /* Decrement our credit if we successfully transmitted */
   if (status)
   {
-    aci_state->data_credit_available--;
+    m_aci_state->data_credit_available--;
   }
 
   return status;
@@ -76,6 +91,7 @@ static void m_write_page (uint16_t page_num, uint8_t *buff)
   __boot_page_erase_short (page_num);
   boot_spm_busy_wait ();
 
+  /* Fill the page buffer */
   for (i = 0; i < SPM_PAGESIZE; i += 2)
   {
       /* Set up little-endian word. */
@@ -94,14 +110,10 @@ static void m_write_page (uint16_t page_num, uint8_t *buff)
   boot_rww_enable ();
 }
 
-/*
- * State transition functions
- */
-
 /* Receive a firmware packet, and write it to flash. Also sends receipt
  * notifications if needed
  */
-static void dfu_data_pkt_handle (aci_state_t *aci_state, aci_evt_t *aci_evt)
+static void dfu_data_pkt_handle (aci_evt_t *aci_evt)
 {
   static uint8_t response[] = {OP_CODE_RESPONSE,
      BLE_DFU_RECEIVE_APP_PROCEDURE,
@@ -111,10 +123,19 @@ static void dfu_data_pkt_handle (aci_state_t *aci_state, aci_evt_t *aci_evt)
   uint8_t bytes_received = aci_evt->len-2;
   uint8_t i;
 
-  /* Send notification for every "notify_interval" number of packets */
-  if (0 == (++packets_received % notify_interval))
+  /* If package notification is enabled, decrement the counter and issue a
+   * notification if required
+  */
+  if (m_pkt_notif_target)
   {
-      m_notify (aci_state);
+    m_pkt_notif_target_cnt--;
+
+    /* Notification is required. Issue notification and reset counter */
+    if (m_pkt_notif_target_cnt == 0)
+    {
+      m_pkt_notif_target_cnt = m_pkt_notif_target;
+      m_notify ();
+    }
   }
 
   /* Write received data to page buffer. When the buffer is full, write the
@@ -123,79 +144,77 @@ static void dfu_data_pkt_handle (aci_state_t *aci_state, aci_evt_t *aci_evt)
   data_received = (aci_evt_params_data_received_t *) &(aci_evt->params);
   for (i = 0; i < bytes_received; i++)
   {
-    page_buffer[page_index++] = data_received->rx_data.aci_data[i];
+    m_page_buff[m_page_buff_index++] = data_received->rx_data.aci_data[i];
 
-    if (page_index == SPM_PAGESIZE)
+    if (m_page_buff_index == SPM_PAGESIZE)
     {
-      page_index = 0;
-      m_write_page (page, page_buffer);
-      page += SPM_PAGESIZE;
+      m_page_buff_index = 0;
+      m_write_page (m_page_address, m_page_buff);
+      m_page_address += SPM_PAGESIZE;
     }
   }
 
   /* Check if we've received the entire firmware image */
-  total_bytes_received += bytes_received;
-  if (firmware_len == total_bytes_received)
+  m_num_of_firmware_bytes_rcvd += bytes_received;
+  if (m_image_size == m_num_of_firmware_bytes_rcvd)
   {
     /* Write final page to flash */
-    m_write_page (page++, page_buffer);
+    m_write_page (m_page_address++, m_page_buff);
 
     /* Send firmware received notification */
-    m_send (aci_state, response, sizeof(response));
+    m_send (response, sizeof(response));
   }
 }
 
 /* Receive and process an init packet */
-static void dfu_init_pkt_handle (aci_state_t *aci_state, aci_evt_t *aci_evt)
+static void dfu_init_pkt_handle (aci_evt_t *aci_evt)
 {
   static uint8_t response[] = {OP_CODE_RESPONSE,
      BLE_DFU_INIT_PROCEDURE,
      BLE_DFU_RESP_VAL_SUCCESS};
 
   /* Send init received notification */
-  m_send (aci_state, response, sizeof(response));
+  m_send (response, sizeof(response));
 }
 
 /* Receive and store the firmware image size */
-static void dfu_image_size_set (aci_state_t *aci_state, aci_evt_t *aci_evt)
+static void dfu_image_size_set (aci_evt_t *aci_evt)
 {
-  const uint8_t pipe = pipes[1];
+  const uint8_t pipe = m_pipe_array[1];
   const uint8_t byte_idx = pipe / 8;
   static uint8_t response[] = {OP_CODE_RESPONSE, BLE_DFU_START_PROCEDURE,
     BLE_DFU_RESP_VAL_SUCCESS};
 
-  /* There are two paths into the bootloader. We either got here because there
-   * is no application, or we jumped from application. If we jumped from
-   * application, we checked that available credit == total credit before the
-   * jump, so simply setting it that way is safe.  Further, as we never
-   * received an event from the nRF8001 with the pipe statuses, we have to
-   * assume that the Control Point TX pipe is open. At this point, that is
-   * safe.
+  /* There are two paths into the bootloader. We either got here because
+   * there is no application, or we jumped from application.
+   * In the latter case, as we haven't received an event from the nRF8001
+   * with the pipe statuses, we have to assume that the Control Point
+   * TX pipe is open. At this point, that is safe.
    */
-  aci_state->pipes_open_bitmap[byte_idx] |= (1 << (pipe % 8));
-  aci_state->pipes_closed_bitmap[byte_idx] &= ~(1 << (pipe % 8));
+  m_aci_state->pipes_open_bitmap[byte_idx] |= (1 << (pipe % 8));
+  m_aci_state->pipes_closed_bitmap[byte_idx] &= ~(1 << (pipe % 8));
 
-  firmware_len =
+  m_image_size =
     (uint32_t)aci_evt->params.data_received.rx_data.aci_data[3] << 24 |
     (uint32_t)aci_evt->params.data_received.rx_data.aci_data[2] << 16 |
     (uint32_t)aci_evt->params.data_received.rx_data.aci_data[1] << 8  |
     (uint32_t)aci_evt->params.data_received.rx_data.aci_data[0];
 
   /* Write response */
-  m_send (aci_state, response, sizeof(response));
+  m_send (response, sizeof(response));
 
-  state = ST_RDY;
+  m_dfu_state = ST_RDY;
 }
 
 /* Disconnect from the nRF8001 and do a reset */
-static void dfu_reset  (aci_state_t *aci_state, aci_evt_t *aci_evt)
+static void dfu_reset  (aci_evt_t *aci_evt)
 {
   hal_aci_evt_t aci_data;
 
-  lib_aci_disconnect(aci_state, ACI_REASON_TERMINATE);
+  lib_aci_disconnect(m_aci_state, ACI_REASON_TERMINATE);
 
   while(1) {
-    if (lib_aci_event_get(aci_state, &aci_data) &&
+    if (lib_aci_event_get(m_aci_state, &aci_data) &&
        (aci_evt->evt_opcode == ACI_EVT_DISCONNECTED)) {
       /* Set watchdog to shortest interval and spin until reset */
       WDTCSR = _BV(WDCE) | _BV(WDE);
@@ -206,32 +225,35 @@ static void dfu_reset  (aci_state_t *aci_state, aci_evt_t *aci_evt)
 }
 
 /* Validate the received firmware image, and transmit the result */
-static void dfu_image_validate (aci_state_t *aci_state, aci_evt_t *aci_evt)
+static void dfu_image_validate (aci_evt_t *aci_evt)
 {
   uint8_t response[] = {OP_CODE_RESPONSE,
     BLE_DFU_VALIDATE_PROCEDURE,
     BLE_DFU_RESP_VAL_SUCCESS};
 
   /* Completed successfully */
-  m_send(aci_state, response, sizeof(response));
+  m_send(response, sizeof(response));
 
-  state = ST_FW_VALID;
+  m_dfu_state = ST_FW_VALID;
 }
 
 /* Update the interval between receipt notifications */
-static void dfu_notification_set (aci_state_t *aci_state,
-    aci_evt_t *aci_evt)
+static void dfu_notification_set (aci_evt_t *aci_evt)
 {
-  notify_interval =
+  m_pkt_notif_target =
     (uint16_t)aci_evt->params.data_received.rx_data.aci_data[2] << 8 |
     (uint16_t)aci_evt->params.data_received.rx_data.aci_data[1];
 }
 
+/*****************************************************************************
+* Public API
+*****************************************************************************/
+
 /* Initialize the state machine */
-void dfu_init (uint8_t *ppipes)
+void dfu_init (uint8_t *p_pipes)
 {
-  state = ST_IDLE;
-  memcpy(pipes, ppipes, 3);
+  m_dfu_state = ST_IDLE;
+  memcpy(m_pipe_array, p_pipes, 3);
 }
 
 /* Update the state machine according to the event in aci_evt */
@@ -241,55 +263,56 @@ void dfu_update (aci_state_t *aci_state, aci_evt_t *aci_evt)
   uint8_t event = EV_ANY;
   uint8_t pipe;
 
+  m_aci_state = aci_state;
   pipe = rx_data->pipe_number;
 
   /* Incoming data packet */
-  if (pipe == pipes[0]) {
+  if (pipe == m_pipe_array[0]) {
     event = DFU_PACKET_RX;
   }
   /* Incoming control point */
-  else if (pipe == pipes[2]) {
+  else if (pipe == m_pipe_array[2]) {
     event = rx_data->aci_data[0];
   }
 
-  /* Update the state machine */
+  /* Update the state machine based on the incoming event and current state */
   switch (event)
   {
     case DFU_PACKET_RX:
-      switch (state)
+      switch (m_dfu_state)
       {
         case ST_IDLE:
-          dfu_image_size_set(aci_state, aci_evt);
+          dfu_image_size_set(aci_evt);
           break;
         case ST_RX_INIT_PKT:
-          dfu_init_pkt_handle(aci_state, aci_evt);
+          dfu_init_pkt_handle(aci_evt);
           break;
         case ST_RX_DATA_PKT:
-          dfu_data_pkt_handle(aci_state, aci_evt);
+          dfu_data_pkt_handle(aci_evt);
           break;
       }
       break;
     case OP_CODE_RECEIVE_INIT:
-      if (state == ST_RDY)
-        state = ST_RX_INIT_PKT;
+      if (m_dfu_state == ST_RDY)
+        m_dfu_state = ST_RX_INIT_PKT;
       break;
     case OP_CODE_RECEIVE_FW:
-      if (state == ST_RDY || state == ST_RX_INIT_PKT)
-        state = ST_RX_DATA_PKT;
+      if (m_dfu_state == ST_RDY || m_dfu_state == ST_RX_INIT_PKT)
+        m_dfu_state = ST_RX_DATA_PKT;
       break;
     case OP_CODE_VALIDATE:
-      if (state == ST_RX_DATA_PKT)
-        dfu_image_validate(aci_state, aci_evt);
+      if (m_dfu_state == ST_RX_DATA_PKT)
+        dfu_image_validate(aci_evt);
       break;
     case OP_CODE_ACTIVATE_N_RESET:
-      if (state == ST_FW_VALID)
-        dfu_reset(aci_state, aci_evt);
+      if (m_dfu_state == ST_FW_VALID)
+        dfu_reset(aci_evt);
       break;
     case OP_CODE_SYS_RESET:
-      dfu_reset(aci_state, aci_evt);
+      dfu_reset(aci_evt);
       break;
     case OP_CODE_PKT_RCPT_NOTIF_REQ:
-      dfu_notification_set (aci_state, aci_evt);
+      dfu_notification_set (aci_evt);
       break;
   }
 }
