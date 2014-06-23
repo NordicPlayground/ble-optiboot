@@ -46,6 +46,7 @@ SPI and the received ACI event is placed in the tail of the event queue.
 #include <stdbool.h>
 
 #include "aci.h"
+#include "pins_arduino.h"
 
 #ifndef HAL_ACI_MAX_LENGTH
 #define HAL_ACI_MAX_LENGTH 31
@@ -64,7 +65,7 @@ typedef struct {
 
 ACI_ASSERT_SIZE(hal_aci_data_t, HAL_ACI_MAX_LENGTH + 2);
 
-/* Datatype for ACI pins and interface (polling/interrupt) */
+/** Datatype for ACI pins and interface (polling/interrupt)*/
 typedef struct aci_pins_t
 {
   uint8_t board_name;
@@ -73,9 +74,16 @@ typedef struct aci_pins_t
   uint8_t mosi_pin;
   uint8_t miso_pin;
   uint8_t sck_pin;
+
   uint8_t spi_clock_divider;
+
   uint8_t reset_pin;
   uint8_t active_pin;
+  uint8_t optional_chip_sel_pin;
+
+  bool interface_is_interrupt;
+
+  uint8_t	interrupt_number;
 } aci_pins_t;
 
 /** @brief ACI Transport Layer initialization.
@@ -86,7 +94,7 @@ typedef struct aci_pins_t
  *  @param a_pins Pins on the MCU used to connect to the nRF8001
  *  @param bool True if debug printing should be enabled on the Serial.
  */
-void hal_aci_tl_init(void);
+void hal_aci_tl_init(aci_pins_t *a_pins);
 
 /** @brief Sends an ACI command to the radio.
  *  @details
@@ -99,41 +107,12 @@ void hal_aci_tl_init(void);
  */
 bool hal_aci_tl_send(hal_aci_data_t *aci_buffer);
 
-/** @brief Process pending transactions.
- *  @details
- *  The library code takes care of calling this function to check if the
- *  nRF8001 RDYN line indicates a pending transaction. It will send a pending
- *  message if there is one and return any receive message that was pending.
- *  @return Points to data buffer for received data. Length byte in buffer is 0
- *  if no data received.
- */
-hal_aci_data_t * hal_aci_tl_poll_get(void);
-
 /** @brief Get an ACI event from the event queue
  *  @details
  *  Call this function from the main context to get an event from the ACI event
  *  queue This is called by lib_aci_event_get
  */
 bool hal_aci_tl_event_get(hal_aci_data_t *p_aci_data);
-
-/** @brief Peek an ACI event from the event queue
- *  @details
- *  Call this function from the main context to peek an event from the ACI
- *  event queue.  This is called by lib_aci_event_peek
- */
-bool hal_aci_tl_event_peek(hal_aci_data_t *p_aci_data);
-
-/** @brief Enable debug printing of all ACI commands sent and ACI events
- * received
- *  @details
- *  When the enable parameter is true. The debug printing is enabled on the
- *  Serial.
- *  When the enable parameter is false. The debug printing is disabled on the
- *  Serial.
- *  By default the debug printing is disabled.
- */
-void hal_aci_tl_debug_print(bool enable);
-
 
 /** @brief Pin reset the nRF8001
  *  @details
@@ -143,36 +122,6 @@ void hal_aci_tl_debug_print(bool enable);
  *  The function handles the exceptions based on the board_name in aci_pins_t
  */
 void hal_aci_tl_pin_reset(void);
-
-/** @brief Return full status of transmit queue
- *  @details
- *
- */
- bool hal_aci_tl_rx_q_full(void);
-
- /** @brief Return empty status of receive queue
- *  @details
- *
- */
- bool hal_aci_tl_rx_q_empty(void);
-
-/** @brief Return full status of receive queue
- *  @details
- *
- */
- bool hal_aci_tl_tx_q_full(void);
-
- /** @brief Return empty status of transmit queue
- *  @details
- *
- */
- bool hal_aci_tl_tx_q_empty(void);
-
-/** @brief Flush the ACI command Queue and the ACI Event Queue
- *  @details
- *  Call this function in the main thread
- */
-void hal_aci_tl_q_flush(void);
 
 #endif /* HAL_ACI_TL_H__ */
 /** @} */

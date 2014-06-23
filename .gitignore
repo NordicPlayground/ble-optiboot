@@ -1,3 +1,4 @@
 *.hex
 *.lst
 *.sh
+*.map

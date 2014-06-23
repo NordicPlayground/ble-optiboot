@@ -216,11 +216,11 @@ asm("  .section .version\n"
  * This saves cycles and program memory.
  */
 #include "boot.h"
-#include "services.h"
-#include "lib_aci.h"
-#include "aci_evts.h"
-#include "dfu.h"
 
+/* Bluetooth files */
+#include "BLE/lib_aci.h"
+#include "BLE/aci_evts.h"
+#include "BLE/dfu.h"
 
 /* We don't use <avr/wdt.h> as those routines have interrupt overhead we don't
  * need.
@@ -228,10 +228,6 @@ asm("  .section .version\n"
 
 #include "pin_defs.h"
 #include "stk500.h"
-
-#ifndef LED_START_FLASHES
-#define LED_START_FLASHES 0
-#endif
 
 #ifdef LUDICROUS_SPEED
 #define BAUD_RATE 230400L
@@ -313,15 +309,12 @@ asm("  .section .version\n"
  * generate any entry or exit code itself.
  */
 int main(void) __attribute__ ((OS_main)) __attribute__ ((section (".init9")));
-static void hardware_init (void);
-static void uart_update_firmware (void);
-static uint8_t uart_validate_byte (uint8_t ch);
-static uint8_t ble_update_firmware(void);
+static void uart_update (void);
+static void ble_update (uint8_t *pipes);
 static void putch(uint8_t ch);
 static uint8_t getch(void);
 static void getNch(uint8_t count);
 static void verifySpace();
-static void flash_led(uint8_t count);
 static inline void watchdogReset();
 static void watchdogConfig(uint8_t x);
 #ifdef SOFT_UART
@@ -330,6 +323,9 @@ static void uartDelay() __attribute__ ((naked));
 
 /* BLE stuff */
 static struct aci_state_t aci_state;
+static uint8_t dfu_mode;
+uint16_t conn_timeout;
+uint16_t conn_interval;
 
 #define BOOTLOADER_KEY 0xDC42
 uint16_t boot_key __attribute__((section (".noinit")));
@@ -435,65 +431,24 @@ void application_jump_check (void)
 # define UART_UDR UDR3
 #endif
 
-/* main program starts here */
+/* In main we set up the hardware, read BLE information from EEPROM if it is
+ * available, and then continuously poll on both the UART and the BLE link
+ * for a hex file transfer. When valid activity is detected on either link,
+ * we proceed with a transfer on that link
+ */
 int main (void)
 {
+  uint8_t valid_ble;
   uint8_t ch;
-  hal_aci_evt_t aci_data;
+  uint8_t pipes[3];
 
-#ifdef SERVICES_PIPE_TYPE_MAPPING_CONTENT
-  static services_pipe_type_mapping_t
-    services_pipe_type_mapping[NUMBER_OF_PIPES] =
-      SERVICES_PIPE_TYPE_MAPPING_CONTENT;
-#else
-  #define NUMBER_OF_PIPES 0
-  static services_pipe_type_mapping_t * services_pipe_type_mapping = NULL;
-#endif
+  const uint8_t *valid_addr = (uint8_t *) 0;
+  const uint8_t *pins_addr = (uint8_t *) 1;
+  const uint8_t *credit_addr = (uint8_t *) 13;
+  const uint8_t *pipes_addr = (uint8_t *) 14;
+  const uint8_t *conn_timeout_addr = (uint8_t *) 17;
+  const uint8_t *conn_interval_addr = (uint8_t *) 19;
 
-  hardware_init ();
-
-  /**
-   * Point ACI data structures to the the setup data that the nRFgo studio
-   * generated for the nRF8001 */
-  if (NULL != services_pipe_type_mapping) {
-    aci_state.aci_setup_info.services_pipe_type_mapping =
-      &services_pipe_type_mapping[0];
-  }
-  else {
-    aci_state.aci_setup_info.services_pipe_type_mapping = NULL;
-  }
-  aci_state.aci_setup_info.number_of_pipes = NUMBER_OF_PIPES;
-  lib_aci_init (&aci_state);
-
-  boot_key = BOOTLOADER_KEY;
-
-  dfu_initialize();
-
-  for (;;) {
-    /* We grab the value in the UDR register without looping, as we need to do
-     * a non-blocking read in the event that UART is disabled. This is okay
-     * since we validate the data we pull before acting on it. */
-    ch = UART_UDR;
-
-    /* Try to get an ACI event from the BLE device. Then, check if the
-     * received character is among the STK500 constants, and enter the UART
-     * bootloader procedure if it is
-    */
-    if (ble_update_firmware()) {
-
-      dfu_update(&aci_state, &(aci_data.evt));
-      for (;;) {
-        (void)ble_update_firmware ();
-      }
-    } else if (uart_validate_byte (ch)) {
-      verifySpace ();
-      uart_update_firmware ();
-    }
-  }
-}
-
-static void hardware_init (void)
-{
   /* After the zero init loop, this is the first code to run.
    *
    * This code makes the following assumptions:
@@ -509,14 +464,6 @@ static void hardware_init (void)
   SP=RAMEND;  /* This is done by hardware reset */
 #endif
 
-  /* Config test line */
-  DDRD |= _BV(PD6);
-  PORTD &= ~_BV(PD6);
-
-#if LED_START_FLASHES > 0
-  /* Set up Timer 1 for timeout counter */
-  TCCR1B = _BV(CS12) | _BV(CS10); /* div 1024 */
-#endif
 #ifndef SOFT_UART
 #if defined(__AVR_ATmega8__) || defined (__AVR_ATmega32__)
   UCSRA = _BV(U2X); /* Double speed mode USART */
@@ -531,43 +478,164 @@ static void hardware_init (void)
 #endif
 #endif
 
-  /* Set up watchdog to trigger after 1000ms */
-  watchdogConfig(WATCHDOG_1S);
-
-#if (LED_START_FLASHES > 0) || defined(LED_DATA_FLASH)
-  /* Set LED pin as output */
-  LED_DDR |= _BV(LED);
-#endif
+  /* Set up watchdog to trigger after 2000ms */
+  watchdogConfig(WATCHDOG_2S);
 
 #ifdef SOFT_UART
   /* Set TX pin as output */
   UART_DDR |= _BV(UART_TX_BIT);
 #endif
 
-#if LED_START_FLASHES > 0
-  /* Flash onboard LED to signal entering of bootloader */
-  flash_led(LED_START_FLASHES * 2);
-#endif
+  eeprom_read_block ((void *) &valid_ble, valid_addr, 1);
 
-  /* Reset nRF if the rdyn line is high */
-  if (PIND & _BV(PD3)) {
-    lib_aci_pin_reset ();
+  if (valid_ble == 1)
+  {
+    /* Read pin data */
+    eeprom_read_block ((void *) &aci_state.aci_pins, pins_addr,
+        sizeof(aci_pins_t));
+
+    /* Read credit data */
+    eeprom_read_block ((void *) &(aci_state.data_credit_total), credit_addr,
+        1);
+    aci_state.data_credit_available = aci_state.data_credit_total;
+
+    /* Read pipe data */
+    eeprom_read_block ((void *) &pipes, pipes_addr, 3);
+
+    /* Read connection timeout */
+    eeprom_read_block ((void *) &conn_timeout, conn_timeout_addr, 2);
+
+    /* Read connection advertise interval */
+    eeprom_read_block ((void *) &conn_interval, conn_interval_addr, 2);
+
+    lib_aci_init (&aci_state);
+
+    dfu_init (pipes);
+  }
+
+  boot_key = BOOTLOADER_KEY;
+
+  for (;;) {
+    /* We grab the value in the UDR register without looping, as we need to do
+     * a non-blocking read in the event that UART is disabled. This is okay
+     * since we validate the data we pull before acting on it. */
+    ch = UART_UDR;
+
+    /* Try to get an ACI event from the BLE device. If the event indicates the
+     * start of a BLE transfer, we proceed to use BLE for the lifetime of the
+     * program.
+     * If not we, check if the character received on UART is a sync event. If
+     * this is the case, we use UART for the lifetime of the program.
+    */
+    if (valid_ble == 1) {
+      do {
+        ble_update (pipes);
+      } while (dfu_mode);
+    }
+
+    if (ch == STK_GET_SYNC) {
+      verifySpace ();
+      uart_update ();
+    }
   }
 }
 
-static void uart_update_firmware (void)
+/* Get and process events from the BLE link. If we detect an event indicating
+ * that we are about to receive a new firmware image on BLE we set "ble_mode"
+ * to a true value.
+ */
+static void ble_update (uint8_t *pipes)
+{
+  hal_aci_evt_t aci_data;
+  aci_evt_t *aci_evt;
+  uint8_t pipe;
+
+  /* Attempt to grab an event from the BLE message queue */
+  if (!lib_aci_event_get(&aci_state, &aci_data)) {
+    return;
+  }
+
+  aci_evt = &(aci_data.evt);
+
+  switch(aci_evt->evt_opcode) {
+    case ACI_EVT_DEVICE_STARTED:
+      aci_state.data_credit_total =
+        aci_evt->params.device_started.credit_available;
+      if (aci_evt->params.device_started.device_mode == ACI_DEVICE_STANDBY) {
+        if (aci_evt->params.device_started.hw_error) {
+            /* Magic number used to make sure the HW error event
+             * is handled correctly. */
+            _delay_ms (20);
+        }
+        else {
+          lib_aci_connect (conn_timeout, conn_interval);
+        }
+      }
+      break; /* ACI Device Started Event */
+
+    case ACI_EVT_CONNECTED:
+      /* Extend the watchdog timeout so we have some more room to play */
+      watchdogConfig(WATCHDOG_4S);
+
+      /* We should have checked that this is true before we jumped into
+       * the bootloader. Hopefully we did.
+       */
+      aci_state.data_credit_available = aci_state.data_credit_total;
+      break;
+
+    case ACI_EVT_DATA_CREDIT:
+      aci_state.data_credit_available = aci_state.data_credit_available +
+                                        aci_evt->params.data_credit.credit;
+      break;
+
+    case ACI_EVT_PIPE_ERROR:
+      /* If we received a pipe error, some message got borked.
+       * All we can do is update our credit to reflect it
+       */
+      if (aci_evt->params.pipe_error.error_code !=
+          ACI_STATUS_ERROR_PEER_ATT_ERROR) {
+        aci_state.data_credit_available++;
+      }
+      break;
+
+    case ACI_EVT_DATA_RECEIVED:
+      /* If data received is on either of the DFU pipes, we enter DFU mode.
+       * We then update the DFU state machine to run the transfer.
+       */
+      pipe = aci_evt->params.data_received.rx_data.pipe_number;
+      if (pipe == pipes[0] || pipe == pipes[2]) {
+        if (!dfu_mode) {
+          dfu_mode = 1;
+        }
+
+        watchdogReset();
+        dfu_update(&aci_state, aci_evt);
+      }
+      break;
+
+    case ACI_EVT_DISCONNECTED:
+      lib_aci_pin_reset ();
+      break;
+
+    case ACI_EVT_HW_ERROR:
+      lib_aci_connect (conn_timeout, conn_interval);
+    break;
+
+    default:
+      break;
+  }
+
+  return;
+}
+
+/* If main() detects a firmware transfer on UART, this function is run in a
+ * loop to process the incoming data and write the firmware to flash
+ */
+static void uart_update (void)
 {
   uint8_t ch;
   uint16_t address;
   uint8_t length;
-  unsigned char which;
-  uint16_t newAddress;
-  uint8_t *bufPtr;
-  uint16_t addrPtr;
-  uint16_t a;
-#ifdef VIRTUAL_BOOT_PARTITION
-  uint16_t vect;
-#endif
 
   /* Forever loop */
   for (;;) {
@@ -575,7 +643,7 @@ static void uart_update_firmware (void)
     ch = getch();
 
     if(ch == STK_GET_PARAMETER) {
-      which = getch();
+      unsigned char which = getch();
       verifySpace();
       if (which == 0x82) {
         /*
@@ -602,6 +670,7 @@ static void uart_update_firmware (void)
     }
     else if(ch == STK_LOAD_ADDRESS) {
       /* LOAD ADDRESS */
+      uint16_t newAddress;
       newAddress = getch();
       newAddress = (newAddress & 0xff) | (getch() << 8);
 #ifdef RAMPZ
@@ -621,6 +690,8 @@ static void uart_update_firmware (void)
     /* Write memory, length is big endian and is in bytes */
     else if(ch == STK_PROG_PAGE) {
       /* PROGRAM PAGE - we support flash programming only, not EEPROM */
+      uint8_t *bufPtr;
+      uint16_t addrPtr;
       getch();
       length = getch();
       getch();
@@ -660,7 +731,7 @@ static void uart_update_firmware (void)
          */
 
         /* Move RESET vector to WDT vector */
-        vect = buff[0] | (buff[1]<<8);
+        uint16_t vect = buff[0] | (buff[1]<<8);
         rstVect = vect;
         wdtVect = buff[8] | (buff[9]<<8);
         vect -= 4; /* Instruction is a relative jump (rjmp), so recalculate. */
@@ -678,6 +749,7 @@ static void uart_update_firmware (void)
       addrPtr = (uint16_t)(void*)address;
       ch = SPM_PAGESIZE / 2;
       do {
+        uint16_t a;
         a = *bufPtr++;
         a |= (*bufPtr++) << 8;
         __boot_page_fill_short((uint16_t)(void*)addrPtr,a);
@@ -735,8 +807,6 @@ static void uart_update_firmware (void)
       putch(SIGNATURE_2);
     }
     else if (ch == STK_LEAVE_PROGMODE) { /* 'Q' */
-      /* Adaboot no-wait mod  */
-      watchdogConfig(WATCHDOG_16MS);
       verifySpace();
     }
     else {
@@ -745,135 +815,6 @@ static void uart_update_firmware (void)
     }
     putch(STK_OK);
   }
-}
-
-static uint8_t uart_validate_byte (uint8_t ch)
-{
-  uint8_t ret = 0;
-
-  if (ch == STK_OK              ||
-      ch == STK_FAILED          ||
-      ch == STK_UNKNOWN         ||
-      ch == STK_NODEVICE        ||
-      ch == ADC_CHANNEL_ERROR   ||
-      ch == ADC_MEASURE_OK      ||
-      ch == PWM_CHANNEL_ERROR   ||
-      ch == PWM_ADJUST_OK       ||
-      ch == CRC_EOP             ||
-      ch == STK_GET_SYNC        ||
-      ch == STK_GET_SIGN_ON     ||
-      ch == STK_SET_PARAMETER   ||
-      ch == STK_GET_PARAMETER   ||
-      ch == STK_SET_DEVICE      ||
-      ch == STK_SET_DEVICE_EXT  ||
-      ch == STK_ENTER_PROGMODE  ||
-      ch == STK_LEAVE_PROGMODE  ||
-      ch == STK_CHIP_ERASE      ||
-      ch == STK_CHECK_AUTOINC   ||
-      ch == STK_LOAD_ADDRESS    ||
-      ch == STK_UNIVERSAL       ||
-      ch == STK_PROG_FLASH      ||
-      ch == STK_PROG_DATA       ||
-      ch == STK_PROG_FUSE       ||
-      ch == STK_PROG_LOCK       ||
-      ch == STK_PROG_PAGE       ||
-      ch == STK_PROG_FUSE_EXT   ||
-      ch == STK_READ_FLASH      ||
-      ch == STK_READ_DATA       ||
-      ch == STK_READ_FUSE       ||
-      ch == STK_READ_LOCK       ||
-      ch == STK_READ_PAGE       ||
-      ch == STK_READ_SIGN       ||
-      ch == STK_READ_OSCCAL     ||
-      ch == STK_READ_FUSE_EXT   ||
-      ch == STK_READ_OSCCAL_EXT) {
-        ret = 1;
-      }
-
-  return ret;
-}
-
-static uint8_t ble_update_firmware (void)
-{
-  hal_aci_evt_t aci_data;
-  aci_evt_t *aci_evt;
-
-  uint8_t dfu_mode = 0;
-
-  if (!lib_aci_event_get(&aci_state, &aci_data)) {
-    return 0;
-  }
-
-  watchdogReset();
-
-  aci_evt = &(aci_data.evt);
-
-  switch(aci_evt->evt_opcode) {
-  case ACI_EVT_DEVICE_STARTED:
-    aci_state.data_credit_total =
-      aci_evt->params.device_started.credit_available;
-    if (ACI_DEVICE_STANDBY == aci_evt->params.device_started.device_mode) {
-      if (aci_evt->params.device_started.hw_error) {
-          /* Magic number used to make sure the HW error event
-           * is handled correctly. */
-          _delay_ms (20);
-      }
-      else {
-        lib_aci_connect (180,   /* timeout in seconds */
-                         0x0050 /* advertising interval 50ms*/);
-      }
-    }
-    break; /* ACI Device Started Event */
-
-  case ACI_EVT_CONNECTED:
-    aci_state.data_credit_available = aci_state.data_credit_total;
-    break;
-
-  case ACI_EVT_DATA_CREDIT:
-    aci_state.data_credit_available = aci_state.data_credit_available +
-                                      aci_evt->params.data_credit.credit;
-    break;
-
-  case ACI_EVT_PIPE_ERROR:
-    if (ACI_STATUS_ERROR_PEER_ATT_ERROR !=
-      aci_evt->params.pipe_error.error_code) {
-      aci_state.data_credit_available++;
-    }
-    break;
-
-  case ACI_EVT_DATA_RECEIVED:
-    /* If data received is on either of the DFU pipes, return success */
-    if (PIPE_DEVICE_FIRMWARE_UPDATE_BLE_SERVICE_DFU_PACKET_RX == aci_evt->params.data_received.rx_data.pipe_number ||
-        PIPE_DEVICE_FIRMWARE_UPDATE_BLE_SERVICE_DFU_CONTROL_POINT_RX_ACK_AUTO == aci_evt->params.data_received.rx_data.pipe_number) {
-      dfu_mode = 1;
-    }
-
-    if (dfu_mode) {
-      dfu_update(&aci_state, aci_evt);
-    }
-    break;
-
-  case ACI_EVT_DISCONNECTED:
-    lib_aci_connect (180,   /* timeout in seconds */
-                     0x0050 /* advertising interval 50ms*/);
-    break;
-
-  case ACI_EVT_HW_ERROR:
-    lib_aci_connect (180,   /* timeout in seconds */
-                     0x0050 /* advertising interval 50ms*/);
-  break;
-
-  case ACI_EVT_PIPE_STATUS:
-    break;
-
-  case ACI_EVT_TIMING:
-    break;
-
-  default:
-    break;
-  }
-
-  return dfu_mode;
 }
 
 static void putch(uint8_t ch)
@@ -910,14 +851,6 @@ static void putch(uint8_t ch)
 static uint8_t getch(void)
 {
   uint8_t ch;
-
-#ifdef LED_DATA_FLASH
-#if defined(__AVR_ATmega8__) || defined (__AVR_ATmega32__)
-  LED_PORT ^= _BV(LED);
-#else
-  LED_PIN |= _BV(LED);
-#endif
-#endif
 
 #ifdef SOFT_UART
   __asm__ __volatile__ (
@@ -961,14 +894,6 @@ static uint8_t getch(void)
   ch = UART_UDR;
 #endif
 
-#ifdef LED_DATA_FLASH
-#if defined(__AVR_ATmega8__) || defined (__AVR_ATmega32__)
-  LED_PORT ^= _BV(LED);
-#else
-  LED_PIN |= _BV(LED);
-#endif
-#endif
-
   return ch;
 }
 
@@ -1008,23 +933,6 @@ static void verifySpace()
   }
   putch(STK_INSYNC);
 }
-
-#if LED_START_FLASHES > 0
-static void flash_led(uint8_t count)
-{
-  do {
-    TCNT1 = -(F_CPU/(1024*16));
-    TIFR1 = _BV(TOV1);
-    while(!(TIFR1 & _BV(TOV1)));
-#if defined(__AVR_ATmega8__)  || defined (__AVR_ATmega32__)
-    LED_PORT ^= _BV(LED);
-#else
-    LED_PIN |= _BV(LED);
-#endif
-    watchdogReset();
-  } while (--count);
-}
-#endif
 
 /* Watchdog functions. These are only safe with interrupts turned off. */
 static void watchdogReset()

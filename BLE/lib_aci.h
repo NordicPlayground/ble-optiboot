@@ -152,13 +152,6 @@ void lib_aci_init(aci_state_t *aci_stat);
  */
 bool lib_aci_is_pipe_available(aci_state_t *aci_stat, uint8_t pipe);
 
-/** @brief Checks if a given pipe is closed.
- *  @param pipe Pipe to check.
- *  @return True if the pipe is closed, otherwise false.
- */
-bool lib_aci_is_pipe_closed(aci_state_t *aci_stat, uint8_t pipe);
-
-
 /* @} */
 
 /** @name ACI commands available in Active mode */
@@ -195,51 +188,10 @@ bool lib_aci_disconnect(aci_state_t *aci_stat, aci_disconnect_reason_t reason);
  */
 bool lib_aci_send_data(uint8_t pipe, uint8_t *value, uint8_t size);
 
-#if 0
-/** @brief Sends WriteDynamicData command to the host.
- *  @details This function sends @c WriteDynamicData command to host. The host
- *    is expected to send @c CommandResponse with the status of this operation.
- *    As long as the status field in the @c CommandResponse is
- *    ACI_STATUS_TRANSACTION_CONTINUE (0x01), the hosts expects more dynamic
- *    data to be written. This function should ideally be called in a cycle,
- *    until all the stored dynamic data is sent to the host. This function
- *    should be called with the dynamic data obtained from the response to a @c
- *    ReadDynamicData (see @c lib_aci_read_dynamic_data) command.
- *  @param sequence_number Sequence number of the dynamic data to be sent.
- *  @param dynamic_data Pointer to the dynamic data.
- *  @param length Length of the dynamic data.
- *  @return True if the command was sent successfully through the ACI. False
- *    otherwise.
-*/
-bool lib_aci_write_dynamic_data(uint8_t sequence_number, uint8_t* dynamic_data,
-    uint8_t length);
-#endif
 /* @} */
 
 /** @name ACI commands available while connected in Bond mode */
 /* @{ */
-
-#if 0
-/** @brief Sends a SMP Security Request.
- *  @details This function send a @c BondRequest command to the radio.  This
- *    command triggers a SMP Security Request to the master. If the master
- *    rejects with a pairing failed or if the bond timer expires the connection
- *    is closed.
- *  @return True if the transaction is successfully initiated.
- */
-bool lib_aci_bond_request(void);
-#endif
-
-#if 0
-/** @brief Set the key requested by the 8001.
- *  @details This function sends an @c SetKey command to the radio.
- *  @param key_rsp_type Type of key.
- *  @param key Pointer to the key to set.
- *  @param len Length of the key.
- *  @return True if the transaction is successfully initiated.
-*/
-bool lib_aci_set_key(aci_key_type_t key_rsp_type, uint8_t *key, uint8_t len);
-#endif
 
 /* @} */
 
@@ -253,35 +205,6 @@ bool lib_aci_set_key(aci_key_type_t key_rsp_type, uint8_t *key, uint8_t len);
  *  @return True if an ACI Event was copied to the pointer.
 */
 bool lib_aci_event_get(aci_state_t *aci_stat, hal_aci_evt_t * aci_evt);
-
-/** @brief Flushes the events in the ACI command queues and ACI Event queue
- *
-*/
-void lib_aci_flush(void);
-
-/** @brief Return full status of the Event queue
- *  @details
- *
- */
- bool lib_aci_event_queue_full(void);
-
- /** @brief Return empty status of the Event queue
- *  @details
- *
- */
- bool lib_aci_event_queue_empty(void);
-
-/** @brief Return full status of Command queue
- *  @details
- *
- */
- bool lib_aci_command_queue_full(void);
-
- /** @brief Return empty status of Command queue
- *  @details
- *
- */
- bool lib_aci_command_queue_empty(void);
 
 /* @} */
 

@@ -102,19 +102,19 @@ STK500-2 = $(STK500) -d$(MCU_TARGET) -ms -q -lCF -LCF -cUSB -I200kHz -s -wt
 # End of build environment code.
 
 
-OBJ        = $(PROGRAM).o acilib.o dfu.o lib_aci.o aci_queue.o hal_aci_tl.o
+LIBS       = BLE/dfu.o BLE/lib_aci.o BLE/aci_queue.o BLE/hal_aci_tl.o BLE/pins_arduino.o
+OBJ        = $(PROGRAM).o $(LIBS)
 OPTIMIZE = -Os -fno-inline-small-functions -fno-split-wide-types
 # -mshort-calls
 
 DEFS       = 
-LIBS       = acilib.o dfu.o lib_aci.o aci_queue.o hal_aci_tl.o
 
 CC         = $(GCCROOT)avr-gcc
 
 # Override is only needed by avr-lib build system.
 
 override CFLAGS        = -g -Wall -Werror $(OPTIMIZE) -mmcu=$(MCU_TARGET) -DF_CPU=$(AVR_FREQ) $(DEFS)
-override LDFLAGS       = $(LDSECTIONS) -Wl,--relax -nostartfiles
+override LDFLAGS       = $(LDSECTIONS) -Wl,--relax -Wl,-Map=output.map -nostartfiles
 # -nostdlib
 #-Wl,--gc-sections
 

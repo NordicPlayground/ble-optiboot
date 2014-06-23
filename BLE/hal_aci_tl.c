@@ -25,21 +25,21 @@
 
 #include "hal_aci_tl.h"
 #include "aci_queue.h"
+#include "pins_arduino.h"
 
-static void m_aci_event_check (void);
+static inline void m_aci_event_check (void);
+static inline uint8_t m_aci_rdyn (void);
 static inline void m_aci_reqn_disable (void);
 static inline void m_aci_reqn_enable (void);
-static inline void m_aci_q_flush (void);
-static bool m_aci_spi_transfer (hal_aci_data_t * data_to_send, hal_aci_data_t * received_data);
-static void m_spi_init (void);
+static inline void m_spi_init (void);
 static inline uint8_t m_spi_readwrite (const uint8_t aci_byte);
+static inline void m_aci_spi_transfer (hal_aci_data_t * data_to_send,
+    hal_aci_data_t * received_data);
 
-static aci_queue_t    aci_tx_q;
-static aci_queue_t    aci_rx_q;
+static aci_queue_t  aci_tx_q;
+static aci_queue_t  aci_rx_q;
+static aci_pins_t   *pins;
 
-/*
-  Checks the RDYN line and runs the SPI transfer if required.
-*/
 static void m_aci_event_check(void)
 {
   hal_aci_data_t data_to_send;
@@ -54,7 +54,7 @@ static void m_aci_event_check(void)
   /* If the ready line is disabled and we have pending messages outgoing we
    * enable the request line
   */
-  if (PIND & _BV(PD3))
+  if (!m_aci_rdyn())
   {
     if (!aci_queue_is_empty(&aci_tx_q))
     {
@@ -75,7 +75,9 @@ static void m_aci_event_check(void)
   /* Receive and/or transmit data */
   m_aci_spi_transfer(&data_to_send, &received_data);
 
-  /* If there are messages to transmit, and we can store the reply, we request a new transfer */
+  /* If there are messages to transmit, and we can store the reply,
+   * we request a new transfer
+  */
   if (!aci_queue_is_full(&aci_rx_q) && !aci_queue_is_empty(&aci_tx_q))
   {
     m_aci_reqn_enable();
@@ -84,37 +86,35 @@ static void m_aci_event_check(void)
   /* Check if we received data */
   if (received_data.buffer[0] > 0)
   {
-    if (!aci_queue_enqueue(&aci_rx_q, &received_data))
-    {
-      /* Receive Buffer full.
-         Should never happen.
-         Spin in a while loop.
-      */
-      while(1);
-    }
+    aci_queue_enqueue(&aci_rx_q, &received_data);
   }
 
   return;
 }
 
+/* Returns true if the rdyn line is low */
+static inline uint8_t m_aci_rdyn (void)
+{
+  volatile uint8_t *rdyn_in = pin_to_input (pins->rdyn_pin);
+
+  return !(*rdyn_in & pin_to_bit_mask(pins->rdyn_pin));
+}
+
 static inline void m_aci_reqn_disable (void)
 {
-  PORTB |= _BV(PB2);
+  volatile uint8_t *reqn_out = pin_to_output (pins->reqn_pin);
+
+  *reqn_out |= pin_to_bit_mask(pins->reqn_pin);
 }
 
 static inline void m_aci_reqn_enable (void)
 {
-  PORTB &= ~_BV(PB2);
+  volatile uint8_t *reqn_out = pin_to_output (pins->reqn_pin);
+
+  *reqn_out &= ~pin_to_bit_mask(pins->reqn_pin);
 }
 
-static void m_aci_q_flush(void)
-{
-  /* Re-initialize aci cmd queue and aci event queue to flush them */
-  aci_queue_init(&aci_tx_q);
-  aci_queue_init(&aci_rx_q);
-}
-
-static bool m_aci_spi_transfer (hal_aci_data_t * data_to_send, hal_aci_data_t * received_data)
+static void m_aci_spi_transfer (hal_aci_data_t * data_to_send, hal_aci_data_t * received_data)
 {
   uint8_t byte_cnt;
   uint8_t byte_sent_cnt;
@@ -152,40 +152,62 @@ static bool m_aci_spi_transfer (hal_aci_data_t * data_to_send, hal_aci_data_t * 
 
   /* RDYN should follow the REQN line in approx 100ns */
   m_aci_reqn_disable();
-
-  return (max_bytes > 0);
 }
 
 static void m_spi_init (void)
 {
-  /* Configure the IO lines */
-  /* Set RDYN as input with pull-up */
-  DDRD &= ~_BV(PD3);
-  PORTD |= _BV(PD3);
+  volatile uint8_t *miso_mode = pin_to_mode (pins->miso_pin);
+  volatile uint8_t *mosi_mode = pin_to_mode (pins->mosi_pin);
+  volatile uint8_t *rdyn_mode = pin_to_mode (pins->rdyn_pin);
+  volatile uint8_t *reqn_mode = pin_to_mode (pins->reqn_pin);
+  volatile uint8_t *sck_mode = pin_to_mode (pins->sck_pin);
 
-  /* Set REQN, MOSI & SCK as output */
-  DDRB |= _BV(PB2) | _BV(PB3) | _BV(PB5);
+  volatile uint8_t *rdyn_out = pin_to_output (pins->rdyn_pin);
 
   /* Set MISO as input */
-  DDRB &= ~_BV(PB4);
+  *miso_mode &= ~pin_to_bit_mask(pins->miso_pin);
+
+  /* Other SPI lines are output */
+  *mosi_mode |= pin_to_bit_mask(pins->mosi_pin);
+  *reqn_mode |= pin_to_bit_mask(pins->reqn_pin);
+  *sck_mode |= pin_to_bit_mask(pins->sck_pin);
+
+  /* RDYN is input with pull-up */
+  *rdyn_mode &= ~pin_to_bit_mask(pins->rdyn_pin);
+  *rdyn_out |= pin_to_bit_mask(pins->rdyn_pin);
 
   /* Configure SPI registers */
   SPCR |= _BV(SPE) | _BV(DORD) | _BV(MSTR) | _BV(SPI2X) | _BV(SPR0);
 }
 
-static inline uint8_t m_spi_readwrite(const uint8_t aci_byte)
+static uint8_t m_spi_readwrite(const uint8_t aci_byte)
 {
   SPDR = aci_byte;
   while(!(SPSR & (1<<SPIF)));
   return SPDR;
 }
 
-void hal_aci_tl_init(void)
+void hal_aci_tl_init(aci_pins_t *aci_pins)
 {
   /* Initialize the ACI Command queue. */
   aci_queue_init(&aci_tx_q);
   aci_queue_init(&aci_rx_q);
+
+  /* Set local pin struct pointer */
+  pins = aci_pins;
+
+  /* Set up SPI */
   m_spi_init ();
+
+  /* If the nRF8001 hasn't pulled the ready line low, it indicates some
+   * message is pending. This should have been handled before jumping from the
+   * application to bootloader. As we're received an unexpected message we are
+   * in an unknown state and must reset the nRF8001.
+  */
+  if (!m_aci_rdyn())
+  {
+    hal_aci_tl_pin_reset();
+  }
 }
 
 bool hal_aci_tl_send(hal_aci_data_t *p_aci_cmd)
@@ -238,18 +260,18 @@ bool hal_aci_tl_event_get(hal_aci_data_t *p_aci_data)
 
 void hal_aci_tl_pin_reset(void)
 {
-  DDRD |= _BV(4);
+  volatile uint8_t *reset_out = pin_to_output (pins->reset_pin);
+  volatile uint8_t *reset_mode = pin_to_mode (pins->reset_pin);
 
-  PORTD |= _BV(4);
-  PORTD &= ~_BV(4);
-  PORTD |= _BV(4);
+  *reset_mode |= pin_to_bit_mask(pins->reset_pin);
+
+  *reset_out |= pin_to_bit_mask(pins->reset_pin);
+  *reset_out &= ~pin_to_bit_mask(pins->reset_pin);
+  *reset_out |= pin_to_bit_mask(pins->reset_pin);
 
   /* Set the nRF8001 to a known state as required by the data sheet */
-  PORTB |= _BV(PB2);  /* REQN */
-  PORTB &= ~_BV(PB4); /* MISO */
-  PORTB &= ~_BV(PB3); /* MOSI */
-  PORTB &= ~_BV(PB5); /* SCK */
+  m_spi_init ();
 
   /* Wait for the nRF8001 to get hold of its lines as the lines float for a few ms after reset */
-  _delay_ms(30);
+  _delay_ms(65);
 }
