@@ -15,12 +15,17 @@ at http://code.google.com/p/arduino
 ------------------------------------------------------------
 Support for Bluetooth Low Energy
 
-Experimental support for firmware transfer using Bluetooth Low Energy has been
+Support for firmware transfer using Bluetooth Low Energy (alpha release) has been
 added. By default, the bootloader runs the normal optiboot routine in order to
 flash over UART. In order to flash using Bluetooth, the bootloader depends on
 SPI pin data and other information loaded into EEPROM, in order to use the
 nRF8001. If valid BLE configuration data is found in the EEPROM, Bluetooth
 transfer will be enabled, and either mode can be used.
+
+The Nordicsemi Device Firmware protocol is used to update the Device Firmware from
+iOS (nRF Toolbox), Android(Master Control Panel) and Windows PC(Master Control Panel).
+The DFU protocol is explained here.
+https://devzone.nordicsemi.com/documentation/nrf51/5.2.0/html/a00029.html
 
 When the bootloader is run, it will wait for activity on either UART or the
 nRF8001 SPI link for a short time, after which it will load the application.
@@ -65,9 +70,29 @@ The EEPROM data is stored in the following format:
 | crc16 value        (2 bytes)  |
 =================================
 
+Integrating device firmware update capability to your application:
+
+Add the Nordic Device Firmware update Service to your nRF8001 configuration using the nRFgo Studio.
+(The nRFgo studio is a visual editor for Bluetooth Smart and is a free download from nordicsemi.com)
+An example to add the Nordic Device Firmware Update Service with your BLE configuration is shown in the 
+ble_uart_project_with_dfu_template project of the ble-sdk-Arduino in github.com.
+
+The Pipe numbers for the transfer Pipes are the Pipes mapping to the Nordic Device Firmware update Service.
+The Characteristics in the Service are DFU Packet (Properties = Write without response, Notify) and 
+DFU Control Point (Properties = Write with automatic Acknowledgment). The Pipe numbers are stored in the 
+below order in the EEPROM. i.e. Pipe for Write without Reponse, Pipe for Notify and the Pipe for Write.
+
+Use the bootloader_data_store() function to store the required settings to the EEPROM.
+
+Use the bootloader_jump() function when the byte 0x01 is received on the DFU Control Point Characteristic.
+This signals the start of the DFU.
+
+Limitations
 
 To allow room for the necessary additions, LED blinking was removed from
-the bootloader.
+the bootloader. 
+This releae does not support bootloading over an encrypted link, support for this will be added
+in the next release.
 
 ------------------------------------------------------------
 Building optiboot for Arduino.
