@@ -573,6 +573,14 @@ static void ble_update (uint8_t *pipes)
       }
       break; /* ACI Device Started Event */
 
+    case ACI_EVT_CMD_RSP:
+      if ((aci_evt->params.cmd_rsp.cmd_opcode == ACI_CMD_RADIO_RESET) &&
+          (aci_evt->params.cmd_rsp.cmd_status == ACI_STATUS_SUCCESS))
+          {
+            lib_aci_connect (conn_timeout, conn_interval);
+          }
+      break; /* ACI Command Response */
+
     case ACI_EVT_CONNECTED:
       /* Extend the watchdog timeout so we have some more room to play */
       watchdogConfig(WATCHDOG_4S);
@@ -614,11 +622,11 @@ static void ble_update (uint8_t *pipes)
       break;
 
     case ACI_EVT_DISCONNECTED:
-      lib_aci_pin_reset ();
+      lib_aci_connect (conn_timeout, conn_interval);
       break;
 
     case ACI_EVT_HW_ERROR:
-      lib_aci_connect (conn_timeout, conn_interval);
+          lib_aci_connect (conn_timeout, conn_interval);
     break;
 
     default:
