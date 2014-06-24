@@ -15,6 +15,8 @@ import time
 avrdude = ['avrdude', '-p', 'm328p', '-P', 'COM4', '-c', 'arduino', '-b', '115200', '-u', '-V']
 flash = ['-U', 'flash:w:application.hex']
 verify = ['-U', 'flash:v:application.hex']
+verify2 = ['-U', 'flash:v:application2.hex']
+
 
 log = open('test.log', 'w')
 
@@ -36,9 +38,11 @@ except subprocess.CalledProcessError:
   log.close()
   sys.exit()
 
+time.sleep(5)
+
 # Write application using BLE
 try:
-  flash = ['ipy', 'system_tests/test_ble/memu/memu_OTA_DFU.py', 'application.hex', 'valid']
+  flash = ['ipy', 'system_tests/test_ble/memu/memu_OTA_DFU.py', 'application2.hex', 'valid']
   subprocess.check_call(flash, stdout=log, stderr=log)
 except subprocess.CalledProcessError:
   print "Failed to load application over BLE"
@@ -49,7 +53,7 @@ time.sleep(10)
 
 # Validate flash contents
 try:
-  subprocess.check_call(avrdude + verify, stdout=log, stderr=log)
+  subprocess.check_call(avrdude + verify2, stdout=log, stderr=log)
 except subprocess.CalledProcessError:
   print "Failed to verify application loaded over BLE"
   log.close()
