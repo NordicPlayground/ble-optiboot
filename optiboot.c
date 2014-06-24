@@ -478,8 +478,12 @@ int main (void)
 #endif
 #endif
 
-  /* Set up watchdog to trigger after 2000ms */
+  /* Set up watchdog to trigger after 4s if possible, otherwise after 2s. */
+#ifndef __AVR_ATmega8__
+  watchdogConfig(WATCHDOG_4S);
+#else
   watchdogConfig(WATCHDOG_2S);
+#endif
 
 #ifdef SOFT_UART
   /* Set TX pin as output */
@@ -582,9 +586,6 @@ static void ble_update (uint8_t *pipes)
       break; /* ACI Command Response */
 
     case ACI_EVT_CONNECTED:
-      /* Extend the watchdog timeout so we have some more room to play */
-      watchdogConfig(WATCHDOG_4S);
-
       /* We should have checked that this is true before we jumped into
        * the bootloader. Hopefully we did.
        */
