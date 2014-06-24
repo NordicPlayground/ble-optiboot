@@ -130,12 +130,6 @@ typedef struct aci_state_t
 /** @name Functions for library management */
 /* @{ */
 
-/** @brief Function to pin reset the nRF8001
- *  @details Pin resets the nRF8001 also handles differences between
- *    development boards
- */
-void lib_aci_pin_reset(void);
-
 /** @brief Initialization function.
  *  @details This function shall be used to initialize/reset ACI Library and
  *    also Resets the nRF8001 by togging the reset pin of the nRF8001. This
@@ -151,6 +145,17 @@ void lib_aci_init(aci_state_t *aci_stat);
  *  @return True if the pipe is available, otherwise false.
  */
 bool lib_aci_is_pipe_available(aci_state_t *aci_stat, uint8_t pipe);
+
+/* @} */
+
+/** @name ACI Commands available in all modes */
+//@{
+
+/** @brief Resets the radio.
+ *  @details The function sends a @c BasebandReset command to the radio.
+ *  @return True if the transaction is successfully initiated.
+ */
+bool lib_aci_radio_reset(aci_state_t *aci_stat);
 
 /* @} */
 

@@ -114,14 +114,11 @@ bool hal_aci_tl_send(hal_aci_data_t *aci_buffer);
  */
 bool hal_aci_tl_event_get(hal_aci_data_t *p_aci_data);
 
-/** @brief Pin reset the nRF8001
+/** @brief Get the state of the nRF8001 RDYN line
  *  @details
- *  The reset line of the nF8001 needs to kept low for 200 ns.
- *  Redbearlab shield v1.1 and v2012.07 are exceptions as they
- *  have a Power ON Reset circuit that works differently.
- *  The function handles the exceptions based on the board_name in aci_pins_t
+ *  True if rdyn is low, or false.
  */
-void hal_aci_tl_pin_reset(void);
+bool hal_aci_tl_rdyn (void);
 
 #endif /* HAL_ACI_TL_H__ */
 /** @} */

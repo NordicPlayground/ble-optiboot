@@ -57,6 +57,17 @@ bool lib_aci_is_pipe_available(aci_state_t *aci_stat, uint8_t pipe)
   return(false);
 }
 
+bool lib_aci_radio_reset(aci_state_t *aci_stat)
+{
+  hal_aci_data_t  msg_to_send;
+  uint8_t *buffer = &(msg_to_send.buffer[0]);
+
+  *(buffer + OFFSET_ACI_CMD_T_LEN) = MSG_BASEBAND_RESET_LEN;
+  *(buffer + OFFSET_ACI_CMD_T_CMD_OPCODE) = ACI_CMD_RADIO_RESET;
+
+  return hal_aci_tl_send(&msg_to_send);
+}
+
 void lib_aci_init(aci_state_t *aci_stat)
 {
   uint8_t i;
@@ -68,6 +79,13 @@ void lib_aci_init(aci_state_t *aci_stat)
   }
 
   hal_aci_tl_init(&aci_stat->aci_pins);
+
+  /* If RDYN is not low, there is no message pending on the nrF8001, at which
+   * point we should performa a radio reset to get in a known state.
+   */
+  if (!hal_aci_tl_rdyn()) {
+    lib_aci_radio_reset(aci_stat);
+  }
 }
 
 bool lib_aci_connect(uint16_t run_timeout, uint16_t adv_interval)
@@ -220,9 +238,4 @@ bool lib_aci_event_get(aci_state_t *aci_stat, hal_aci_evt_t *p_aci_evt_data)
     }
   }
   return status;
-}
-
-void lib_aci_pin_reset(void)
-{
-  hal_aci_tl_pin_reset();
 }
