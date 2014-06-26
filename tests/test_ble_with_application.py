@@ -12,10 +12,13 @@ import subprocess
 import sys
 import time
 
+dfu_app = 'dfu_application.hex'
+test_app = 'test_application.hex'
+
 avrdude = ['avrdude', '-p', 'm328p', '-P', 'COM4', '-c', 'arduino', '-b', '115200', '-u', '-V']
-flash = ['-U', 'flash:w:application.hex']
-verify = ['-U', 'flash:v:application.hex']
-verify2 = ['-U', 'flash:v:application2.hex']
+flash = ['-U', 'flash:w'+dfu_app]
+verify = ['-U', 'flash:v'+dfu_app]
+verify2 = ['-U', 'flash:v'+test_app]
 
 
 log = open('test.log', 'w')
@@ -42,7 +45,7 @@ time.sleep(5)
 
 # Write application using BLE
 try:
-  flash = ['ipy', 'system_tests/test_ble/memu/memu_OTA_DFU.py', 'application2.hex', 'valid']
+  flash = ['ipy', 'system_tests/test_ble/memu/memu_OTA_DFU.py', test_app, 'valid']
   subprocess.check_call(flash, stdout=log, stderr=log)
 except subprocess.CalledProcessError:
   print "Failed to load application over BLE"
