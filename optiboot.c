@@ -598,14 +598,17 @@ static void ble_update (uint8_t *pipes)
       break; /* ACI Device Started Event */
 
     case ACI_EVT_CMD_RSP:
-      if ((aci_evt->params.cmd_rsp.cmd_opcode == ACI_CMD_RADIO_RESET) &&
-          (aci_evt->params.cmd_rsp.cmd_status == ACI_STATUS_SUCCESS))
+      if (aci_evt->params.cmd_rsp.cmd_opcode == ACI_CMD_RADIO_RESET)
+      {
+          if (aci_evt->params.cmd_rsp.cmd_status == ACI_STATUS_SUCCESS)
           {
             lib_aci_connect (conn_timeout, conn_interval);
           }
+      }
       break; /* ACI Command Response */
 
     case ACI_EVT_CONNECTED:
+      watchdogReset();
       /* We should have checked that this is true before we jumped into
        * the bootloader. Hopefully we did.
        */
@@ -613,11 +616,13 @@ static void ble_update (uint8_t *pipes)
       break;
 
     case ACI_EVT_DATA_CREDIT:
+      watchdogReset();
       aci_state.data_credit_available = aci_state.data_credit_available +
                                         aci_evt->params.data_credit.credit;
       break;
 
     case ACI_EVT_PIPE_ERROR:
+      watchdogReset();
       /* If we received a pipe error, some message got borked.
        * All we can do is update our credit to reflect it
        */
@@ -628,6 +633,7 @@ static void ble_update (uint8_t *pipes)
       break;
 
     case ACI_EVT_DATA_RECEIVED:
+      watchdogReset();
       /* If data received is on either of the DFU pipes, we enter DFU mode.
        * We then update the DFU state machine to run the transfer.
        */
@@ -637,7 +643,6 @@ static void ble_update (uint8_t *pipes)
           dfu_mode = 1;
         }
 
-        watchdogReset();
         dfu_update(&aci_state, aci_evt);
       }
       break;
@@ -647,7 +652,7 @@ static void ble_update (uint8_t *pipes)
       break;
 
     case ACI_EVT_HW_ERROR:
-          lib_aci_connect (conn_timeout, conn_interval);
+      lib_aci_connect (conn_timeout, conn_interval);
     break;
 
     default:
