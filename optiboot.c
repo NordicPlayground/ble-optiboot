@@ -216,6 +216,7 @@ asm("  .section .version\n"
  * This saves cycles and program memory.
  */
 #include "boot.h"
+#include "jump.h"
 
 /* Bluetooth files */
 #include "BLE/lib_aci.h"
@@ -331,20 +332,6 @@ static struct aci_state_t aci_state;
 static uint8_t dfu_mode;
 uint16_t conn_timeout;
 uint16_t conn_interval;
-
-#define BOOTLOADER_KEY 0xDC42
-uint16_t boot_key __attribute__((section (".noinit")));
-void application_jump_check (void) __attribute__ ((used, naked, section (".init3")));
-void application_jump_check (void)
-{
-  if ((MCUSR & (1 << WDRF)) && (boot_key == BOOTLOADER_KEY)) {
-    MCUSR &= ~(1 << WDRF);
-    boot_key = 0;
-    watchdogConfig(WATCHDOG_OFF);
-
-    ((void (*)(void)) 0x0000)();
-  }
-}
 
 /*
  * NRWW memory
@@ -537,7 +524,7 @@ int main (void)
     dfu_init (pipes);
   }
 
-  boot_key = BOOTLOADER_KEY;
+  jump_boot_key_set ();
 
   for (;;) {
     /* We grab the value in the UDR register without looping, as we need to do
