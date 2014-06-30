@@ -155,6 +155,12 @@ static void m_spi_init (void)
 
   volatile uint8_t *rdyn_out = pin_to_output (pins->rdyn_pin);
 
+  /* If the user has selected a different pin than ~SS as slave select,
+   * we might accidentally be put in slave mode if a signal arrives on the
+   * pin. We set it as output to avoid this possibility.
+   */
+  DDRB |= (1 << PB2);
+
   /* Set MISO as input */
   *miso_mode &= ~pin_to_bit_mask(pins->miso_pin);
 
