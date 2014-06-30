@@ -249,6 +249,12 @@ static void dfu_reset  (aci_evt_t *aci_evt)
   }
 }
 
+/* Activate the received firmware image */
+static void dfu_image_activate (aci_evt_t *aci_evt)
+{
+  dfu_reset (aci_evt);
+}
+
 /* Validate the received firmware image, and transmit the result */
 static void dfu_image_validate (aci_evt_t *aci_evt)
 {
@@ -257,7 +263,10 @@ static void dfu_image_validate (aci_evt_t *aci_evt)
     BLE_DFU_RESP_VAL_SUCCESS};
 
   /* Completed successfully */
-  m_send(response, sizeof(response));
+  if (m_num_of_firmware_bytes_rcvd == m_image_size)
+  {
+    m_send(response, sizeof(response));
+  }
 
   m_dfu_state = ST_FW_VALID;
 }
@@ -332,7 +341,7 @@ void dfu_update (aci_state_t *aci_state, aci_evt_t *aci_evt)
       break;
     case OP_CODE_ACTIVATE_N_RESET:
       if (m_dfu_state == ST_FW_VALID)
-        dfu_reset(aci_evt);
+        dfu_image_activate(aci_evt);
       break;
     case OP_CODE_SYS_RESET:
       dfu_reset(aci_evt);
