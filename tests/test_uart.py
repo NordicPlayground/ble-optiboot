@@ -13,8 +13,8 @@ import sys
 import time
 
 avrdude = ['avrdude', '-p', 'm328p', '-P', 'COM4', '-c', 'arduino', '-b', '115200', '-u', '-V']
-flash = ['-U', 'flash:w:application.hex']
-verify = ['-U', 'flash:v:application.hex']
+flash = ['-U', 'flash:w:test_application.hex']
+verify = ['-U', 'flash:v:test_application.hex']
 
 log = open('test.log', 'w')
 

@@ -13,13 +13,13 @@ import sys
 import time
 
 avrdude = ['avrdude', '-p', 'm328p', '-P', 'COM4', '-c', 'arduino', '-b', '115200', '-u', '-V']
-verify = ['-U', 'flash:v:application.hex']
+verify = ['-U', 'flash:v:test_application.hex']
 
 log = open('test.log', 'w')
 
 # Write application using BLE
 try:
-  flash = ['ipy', 'system_tests/test_ble/memu/memu_OTA_DFU.py', 'application.hex', 'valid']
+  flash = ['ipy', 'system_tests/test_ble/memu/memu_OTA_DFU.py', 'test_application.hex', 'valid']
   subprocess.check_call(flash, stdout=log, stderr=log)
 except subprocess.CalledProcessError:
   print "Failed to load application over BLE"

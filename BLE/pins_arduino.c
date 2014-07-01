@@ -36,7 +36,7 @@ volatile uint8_t *pin_to_mode (uint8_t n)
   {
     return &DDRB;
   }
-  else if (n >= 14 && n < 19)
+  else if (n >= 14 && n <= 19)
   {
     return &DDRC;
   }
@@ -56,7 +56,7 @@ volatile uint8_t *pin_to_output (uint8_t n)
   {
     return &PORTB;
   }
-  else if (n >= 14 && n < 19)
+  else if (n >= 14 && n <= 19)
   {
     return &PORTC;
   }
@@ -76,7 +76,7 @@ volatile uint8_t *pin_to_input (uint8_t n)
   {
     return &PINB;
   }
-  else if (n >= 14 && n < 19)
+  else if (n >= 14 && n <= 19)
   {
     return &PINC;
   }
@@ -96,7 +96,7 @@ uint8_t pin_to_bit_mask (uint8_t n)
   {
     return _BV(n - 8);
   }
-  else if (n >= 14 && n < 19)
+  else if (n >= 14 && n <= 19)
   {
     return _BV(n - 14);
   }

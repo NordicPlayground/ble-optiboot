@@ -70,7 +70,7 @@ static void m_notify (void)
 {
   uint8_t response[] = {OP_CODE_PKT_RCPT_NOTIF,
     0,
-    (uint8_t) m_num_of_firmware_bytes_rcvd,
+    (uint8_t) (m_num_of_firmware_bytes_rcvd >> 0),
     (uint8_t) (m_num_of_firmware_bytes_rcvd >> 8),
     (uint8_t) (m_num_of_firmware_bytes_rcvd >> 16),
     (uint8_t) (m_num_of_firmware_bytes_rcvd >> 24)};
@@ -268,6 +268,7 @@ static void dfu_notification_set (aci_evt_t *aci_evt)
   m_pkt_notif_target =
     (uint16_t)aci_evt->params.data_received.rx_data.aci_data[2] << 8 |
     (uint16_t)aci_evt->params.data_received.rx_data.aci_data[1];
+  m_pkt_notif_target_cnt = m_pkt_notif_target;
 }
 
 /*****************************************************************************

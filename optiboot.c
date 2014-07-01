@@ -229,6 +229,10 @@ asm("  .section .version\n"
 #include "pin_defs.h"
 #include "stk500.h"
 
+#ifndef LED_START_FLASHES
+#define LED_START_FLASHES 0
+#endif
+
 #ifdef LUDICROUS_SPEED
 #define BAUD_RATE 230400L
 #endif
@@ -315,6 +319,7 @@ static void putch(uint8_t ch);
 static uint8_t getch(void);
 static void getNch(uint8_t count);
 static void verifySpace();
+static void flash_led(uint8_t count);
 static inline void watchdogReset();
 static void watchdogConfig(uint8_t x);
 #ifdef SOFT_UART
@@ -464,6 +469,10 @@ int main (void)
   SP=RAMEND;  /* This is done by hardware reset */
 #endif
 
+#if LED_START_FLASHES > 0
+  /* Set up Timer 1 for timeout counter */
+  TCCR1B = _BV(CS12) | _BV(CS10); /* div 1024 */
+#endif
 #ifndef SOFT_UART
 #if defined(__AVR_ATmega8__) || defined (__AVR_ATmega32__)
   UCSRA = _BV(U2X); /* Double speed mode USART */
@@ -485,11 +494,22 @@ int main (void)
   watchdogConfig(WATCHDOG_2S);
 #endif
 
+#if (LED_START_FLASHES > 0) || defined(LED_DATA_FLASH)
+  /* Set LED pin as output */
+  LED_DDR |= _BV(LED);
+#endif
+
 #ifdef SOFT_UART
   /* Set TX pin as output */
   UART_DDR |= _BV(UART_TX_BIT);
 #endif
 
+#if LED_START_FLASHES > 0
+  /* Flash onboard LED to signal entering of bootloader */
+  flash_led(LED_START_FLASHES * 2);
+#endif
+
+  /* Check to see if we should read BLE data from EEPROM */
   eeprom_read_block ((void *) &valid_ble, valid_addr, 1);
 
   if (valid_ble == 1)
@@ -578,14 +598,17 @@ static void ble_update (uint8_t *pipes)
       break; /* ACI Device Started Event */
 
     case ACI_EVT_CMD_RSP:
-      if ((aci_evt->params.cmd_rsp.cmd_opcode == ACI_CMD_RADIO_RESET) &&
-          (aci_evt->params.cmd_rsp.cmd_status == ACI_STATUS_SUCCESS))
+      if (aci_evt->params.cmd_rsp.cmd_opcode == ACI_CMD_RADIO_RESET)
+      {
+          if (aci_evt->params.cmd_rsp.cmd_status == ACI_STATUS_SUCCESS)
           {
             lib_aci_connect (conn_timeout, conn_interval);
           }
+      }
       break; /* ACI Command Response */
 
     case ACI_EVT_CONNECTED:
+      watchdogReset();
       /* We should have checked that this is true before we jumped into
        * the bootloader. Hopefully we did.
        */
@@ -593,11 +616,13 @@ static void ble_update (uint8_t *pipes)
       break;
 
     case ACI_EVT_DATA_CREDIT:
+      watchdogReset();
       aci_state.data_credit_available = aci_state.data_credit_available +
                                         aci_evt->params.data_credit.credit;
       break;
 
     case ACI_EVT_PIPE_ERROR:
+      watchdogReset();
       /* If we received a pipe error, some message got borked.
        * All we can do is update our credit to reflect it
        */
@@ -608,6 +633,7 @@ static void ble_update (uint8_t *pipes)
       break;
 
     case ACI_EVT_DATA_RECEIVED:
+      watchdogReset();
       /* If data received is on either of the DFU pipes, we enter DFU mode.
        * We then update the DFU state machine to run the transfer.
        */
@@ -617,7 +643,6 @@ static void ble_update (uint8_t *pipes)
           dfu_mode = 1;
         }
 
-        watchdogReset();
         dfu_update(&aci_state, aci_evt);
       }
       break;
@@ -627,7 +652,7 @@ static void ble_update (uint8_t *pipes)
       break;
 
     case ACI_EVT_HW_ERROR:
-          lib_aci_connect (conn_timeout, conn_interval);
+      lib_aci_connect (conn_timeout, conn_interval);
     break;
 
     default:
@@ -861,6 +886,14 @@ static uint8_t getch(void)
 {
   uint8_t ch;
 
+#ifdef LED_DATA_FLASH
+#if defined(__AVR_ATmega8__) || defined (__AVR_ATmega32__)
+  LED_PORT ^= _BV(LED);
+#else
+  LED_PIN |= _BV(LED);
+#endif
+#endif
+
 #ifdef SOFT_UART
   __asm__ __volatile__ (
     "1: sbic  %[uartPin],%[uartBit]\n"  /* Wait for start edge */
@@ -903,6 +936,14 @@ static uint8_t getch(void)
   ch = UART_UDR;
 #endif
 
+#ifdef LED_DATA_FLASH
+#if defined(__AVR_ATmega8__) || defined (__AVR_ATmega32__)
+  LED_PORT ^= _BV(LED);
+#else
+  LED_PIN |= _BV(LED);
+#endif
+#endif
+
   return ch;
 }
 
@@ -942,6 +983,23 @@ static void verifySpace()
   }
   putch(STK_INSYNC);
 }
+
+#if LED_START_FLASHES > 0
+static void flash_led(uint8_t count)
+{
+  do {
+    TCNT1 = -(F_CPU/(1024*16));
+    TIFR1 = _BV(TOV1);
+    while(!(TIFR1 & _BV(TOV1)));
+#if defined(__AVR_ATmega8__)  || defined (__AVR_ATmega32__)
+    LED_PORT ^= _BV(LED);
+#else
+    LED_PIN |= _BV(LED);
+#endif
+    watchdogReset();
+  } while (--count);
+}
+#endif
 
 /* Watchdog functions. These are only safe with interrupts turned off. */
 static void watchdogReset()
