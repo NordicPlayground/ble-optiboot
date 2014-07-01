@@ -658,7 +658,7 @@ static void uart_update (void)
   uint16_t address;
   uint8_t length;
 
-  jump_app_key_clear ();
+  jump_app_key_clear();
 
   /* Forever loop */
   for (;;) {
@@ -669,105 +669,97 @@ static void uart_update (void)
       unsigned char which = getch();
       verifySpace();
       if (which == 0x82) {
-        /*
-         * Send optiboot version as "minor SW version"
-         */
-        putch(OPTIBOOT_MINVER);
+	/*
+	 * Send optiboot version as "minor SW version"
+	 */
+	putch(OPTIBOOT_MINVER);
       } else if (which == 0x81) {
-        putch(OPTIBOOT_MAJVER);
+	  putch(OPTIBOOT_MAJVER);
       } else {
-        /*
-        * GET PARAMETER returns a generic 0x03 reply for
-        * other parameters - enough to keep Avrdude happy
-        */
-        putch(0x03);
+	/*
+	 * GET PARAMETER returns a generic 0x03 reply for
+         * other parameters - enough to keep Avrdude happy
+	 */
+	putch(0x03);
       }
     }
     else if(ch == STK_SET_DEVICE) {
-      /* SET DEVICE is ignored */
+      // SET DEVICE is ignored
       getNch(20);
     }
     else if(ch == STK_SET_DEVICE_EXT) {
-      /* SET DEVICE EXT is ignored */
+      // SET DEVICE EXT is ignored
       getNch(5);
     }
     else if(ch == STK_LOAD_ADDRESS) {
-      /* LOAD ADDRESS */
+      // LOAD ADDRESS
       uint16_t newAddress;
       newAddress = getch();
       newAddress = (newAddress & 0xff) | (getch() << 8);
 #ifdef RAMPZ
-      /* Transfer top bit to RAMPZ */
+      // Transfer top bit to RAMPZ
       RAMPZ = (newAddress & 0x8000) ? 1 : 0;
 #endif
-      /* Convert from word address to byte address */
-      newAddress += newAddress;
+      newAddress += newAddress; // Convert from word address to byte address
       address = newAddress;
       verifySpace();
     }
     else if(ch == STK_UNIVERSAL) {
-      /* UNIVERSAL command is ignored */
+      // UNIVERSAL command is ignored
       getNch(4);
       putch(0x00);
     }
     /* Write memory, length is big endian and is in bytes */
     else if(ch == STK_PROG_PAGE) {
-      /* PROGRAM PAGE - we support flash programming only, not EEPROM */
+      // PROGRAM PAGE - we support flash programming only, not EEPROM
       uint8_t *bufPtr;
       uint16_t addrPtr;
-      getch();
+
+      getch();			/* getlen() */
       length = getch();
       getch();
 
-      /* If we are in RWW section, immediately start page erase */
-      if (address < NRWWSTART) {
-        __boot_page_erase_short((uint16_t)(void*)address);
-      }
+      // If we are in RWW section, immediately start page erase
+      if (address < NRWWSTART) __boot_page_erase_short((uint16_t)(void*)address);
 
-      /* While that is going on, read in page contents */
+      // While that is going on, read in page contents
       bufPtr = buff;
-      do {
-        *bufPtr++ = getch();
-      } while (--length);
+      do *bufPtr++ = getch();
+      while (--length);
 
-      /* If we are in NRWW section, page erase has to be delayed until now.
-       * Todo: Take RAMPZ into account (not doing so just means that we will
-       *  treat the top of both "pages" of flash as NRWW, for a slight speed
-       *  decrease, so fixing this is not urgent.)
-       */
-      if (address >= NRWWSTART) {
-        __boot_page_erase_short((uint16_t)(void*)address);
-      }
+      // If we are in NRWW section, page erase has to be delayed until now.
+      // Todo: Take RAMPZ into account (not doing so just means that we will
+      //  treat the top of both "pages" of flash as NRWW, for a slight speed
+      //  decrease, so fixing this is not urgent.)
+      if (address >= NRWWSTART) __boot_page_erase_short((uint16_t)(void*)address);
 
-      /* Read command terminator, start reply */
+      // Read command terminator, start reply
       verifySpace();
 
-      /* If only a partial page is to be programmed, the erase might not be
-       * complete.  So check that here
-       */
+      // If only a partial page is to be programmed, the erase might not be complete.
+      // So check that here
       boot_spm_busy_wait();
 
 #ifdef VIRTUAL_BOOT_PARTITION
       if ((uint16_t)(void*)address == 0) {
-        /* This is the reset vector page. We need to live-patch the code so the
-         * bootloader runs.
-         */
-
-        /* Move RESET vector to WDT vector */
+        // This is the reset vector page. We need to live-patch the code so the
+        // bootloader runs.
+        //
+        // Move RESET vector to WDT vector
         uint16_t vect = buff[0] | (buff[1]<<8);
         rstVect = vect;
         wdtVect = buff[8] | (buff[9]<<8);
-        vect -= 4; /* Instruction is a relative jump (rjmp), so recalculate. */
+        vect -= 4; // Instruction is a relative jump (rjmp), so recalculate.
         buff[8] = vect & 0xff;
         buff[9] = vect >> 8;
 
-        /* Add jump to bootloader at RESET vector */
+        // Add jump to bootloader at RESET vector
         buff[0] = 0x7f;
-        buff[1] = 0xce; /* rjmp 0x1d00 instruction */
+        buff[1] = 0xce; // rjmp 0x1d00 instruction
       }
 #endif
 
-      /* Copy buffer into programming buffer */
+      // Copy buffer into programming buffer
       bufPtr = buff;
       addrPtr = (uint16_t)(void*)address;
       ch = SPM_PAGESIZE / 2;
@@ -779,27 +771,27 @@ static void uart_update (void)
         addrPtr += 2;
       } while (--ch);
 
-      /* Write from programming buffer */
+      // Write from programming buffer
       __boot_page_write_short((uint16_t)(void*)address);
       boot_spm_busy_wait();
 
 #if defined(RWWSRE)
-      /* Reenable read access to flash */
+      // Reenable read access to flash
       boot_rww_enable();
 #endif
 
     }
     /* Read memory block mode, length is big endian.  */
     else if(ch == STK_READ_PAGE) {
-      /* READ PAGE - we only read flash */
-      getch();
+      // READ PAGE - we only read flash
+      getch();			/* getlen() */
       length = getch();
       getch();
 
       verifySpace();
       do {
 #ifdef VIRTUAL_BOOT_PARTITION
-        /* Undo vector patch in bottom page so verify passes */
+        // Undo vector patch in bottom page so verify passes
         if (address == 0)       ch=rstVect & 0xff;
         else if (address == 1)  ch=rstVect >> 8;
         else if (address == 8)  ch=wdtVect & 0xff;
@@ -807,14 +799,14 @@ static void uart_update (void)
         else ch = pgm_read_byte_near(address);
         address++;
 #elif defined(RAMPZ)
-        /* Since RAMPZ should already be set, we need to use EPLM directly.
-         * Also, we can use the autoincrement version of lpm to update
-         * "address" do putch(pgm_read_byte_near(address++)); while (--length);
-         * read a Flash and increment the address (may increment RAMPZ)
-         */
+        // Since RAMPZ should already be set, we need to use EPLM directly.
+        // Also, we can use the autoincrement version of lpm to update "address"
+        //      do putch(pgm_read_byte_near(address++));
+        //      while (--length);
+        // read a Flash and increment the address (may increment RAMPZ)
         __asm__ ("elpm %0,Z+\n" : "=r" (ch), "=z" (address): "1" (address));
 #else
-        /* read a Flash byte and increment the address */
+        // read a Flash byte and increment the address
         __asm__ ("lpm %0,Z+\n" : "=r" (ch), "=z" (address): "1" (address));
 #endif
         putch(ch);
@@ -823,14 +815,20 @@ static void uart_update (void)
 
     /* Get device signature bytes  */
     else if(ch == STK_READ_SIGN) {
-      /* READ SIGN - return what Avrdude wants to hear */
+      // READ SIGN - return what Avrdude wants to hear
       verifySpace();
       putch(SIGNATURE_0);
       putch(SIGNATURE_1);
       putch(SIGNATURE_2);
     }
+    else if (ch == STK_LEAVE_PROGMODE) { /* 'Q' */
+      // Adaboot no-wait mod
+      watchdogConfig(WATCHDOG_16MS);
+      verifySpace();
+    }
     else {
-      jump_app_key_set ();
+      // This covers the response to commands like STK_ENTER_PROGMODE
+      jump_app_key_set();
       verifySpace();
     }
     putch(STK_OK);
