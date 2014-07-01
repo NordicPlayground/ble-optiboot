@@ -28,6 +28,7 @@
 #include <util/delay.h>
 
 #include "../boot.h"
+#include "../jump.h"
 
 #include "lib_aci.h"
 #include "dfu.h"
@@ -75,7 +76,7 @@ static void m_notify (void)
     (uint8_t) (m_num_of_firmware_bytes_rcvd >> 16),
     (uint8_t) (m_num_of_firmware_bytes_rcvd >> 24)};
 
-  m_send (response, sizeof(response));
+  while(!m_send (response, sizeof(response)));
 }
 
 /* Transmit buffer_len number of bytes from buffer to the BLE controller */
@@ -187,7 +188,7 @@ static void dfu_data_pkt_handle (aci_evt_t *aci_evt)
     m_write_page (m_page_address++, m_page_buff);
 
     /* Send firmware received notification */
-    m_send (response, sizeof(response));
+    while(!m_send (response, sizeof(response)));
   }
 }
 
@@ -199,7 +200,7 @@ static void dfu_init_pkt_handle (aci_evt_t *aci_evt)
      BLE_DFU_RESP_VAL_SUCCESS};
 
   /* Send init received notification */
-  m_send (response, sizeof(response));
+  while(!m_send (response, sizeof(response)));
 }
 
 /* Receive and store the firmware image size */
@@ -226,7 +227,7 @@ static void dfu_image_size_set (aci_evt_t *aci_evt)
     (uint32_t)aci_evt->params.data_received.rx_data.aci_data[0];
 
   /* Write response */
-  m_send (response, sizeof(response));
+  while(!m_send (response, sizeof(response)));
 
   m_dfu_state = ST_RDY;
 }
@@ -234,8 +235,17 @@ static void dfu_image_size_set (aci_evt_t *aci_evt)
 /* Disconnect from the nRF8001 and do a reset */
 static void dfu_reset  (aci_evt_t *aci_evt)
 {
+  while (!lib_aci_radio_reset(m_aci_state));
+
+  m_dfu_state = ST_IDLE;
+}
+
+/* Activate the received firmware image */
+static void dfu_image_activate (aci_evt_t *aci_evt)
+{
   hal_aci_evt_t aci_data;
 
+  jump_app_key_set ();
   lib_aci_disconnect(m_aci_state, ACI_REASON_TERMINATE);
 
   while(1) {
@@ -257,7 +267,10 @@ static void dfu_image_validate (aci_evt_t *aci_evt)
     BLE_DFU_RESP_VAL_SUCCESS};
 
   /* Completed successfully */
-  m_send(response, sizeof(response));
+  if (m_num_of_firmware_bytes_rcvd == m_image_size)
+  {
+    while(!m_send(response, sizeof(response)));
+  }
 
   m_dfu_state = ST_FW_VALID;
 }
@@ -324,6 +337,11 @@ void dfu_update (aci_state_t *aci_state, aci_evt_t *aci_evt)
       break;
     case OP_CODE_RECEIVE_FW:
       if (m_dfu_state == ST_RDY || m_dfu_state == ST_RX_INIT_PKT)
+        /* Once we reach this point, the currently loaded application
+         * will be trashed, and we should disable jumping to application
+         * until we have verified the incoming firmware.
+         */
+        jump_app_key_clear ();
         m_dfu_state = ST_RX_DATA_PKT;
       break;
     case OP_CODE_VALIDATE:
@@ -332,7 +350,7 @@ void dfu_update (aci_state_t *aci_state, aci_evt_t *aci_evt)
       break;
     case OP_CODE_ACTIVATE_N_RESET:
       if (m_dfu_state == ST_FW_VALID)
-        dfu_reset(aci_evt);
+        dfu_image_activate(aci_evt);
       break;
     case OP_CODE_SYS_RESET:
       dfu_reset(aci_evt);
