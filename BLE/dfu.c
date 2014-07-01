@@ -76,7 +76,7 @@ static void m_notify (void)
     (uint8_t) (m_num_of_firmware_bytes_rcvd >> 16),
     (uint8_t) (m_num_of_firmware_bytes_rcvd >> 24)};
 
-  m_send (response, sizeof(response));
+  while(!m_send (response, sizeof(response)));
 }
 
 /* Transmit buffer_len number of bytes from buffer to the BLE controller */
@@ -188,7 +188,7 @@ static void dfu_data_pkt_handle (aci_evt_t *aci_evt)
     m_write_page (m_page_address++, m_page_buff);
 
     /* Send firmware received notification */
-    m_send (response, sizeof(response));
+    while(!m_send (response, sizeof(response)));
   }
 }
 
@@ -200,7 +200,7 @@ static void dfu_init_pkt_handle (aci_evt_t *aci_evt)
      BLE_DFU_RESP_VAL_SUCCESS};
 
   /* Send init received notification */
-  m_send (response, sizeof(response));
+  while(!m_send (response, sizeof(response)));
 }
 
 /* Receive and store the firmware image size */
@@ -227,7 +227,7 @@ static void dfu_image_size_set (aci_evt_t *aci_evt)
     (uint32_t)aci_evt->params.data_received.rx_data.aci_data[0];
 
   /* Write response */
-  m_send (response, sizeof(response));
+  while(!m_send (response, sizeof(response)));
 
   m_dfu_state = ST_RDY;
 }
@@ -269,7 +269,7 @@ static void dfu_image_validate (aci_evt_t *aci_evt)
   /* Completed successfully */
   if (m_num_of_firmware_bytes_rcvd == m_image_size)
   {
-    m_send(response, sizeof(response));
+    while(!m_send(response, sizeof(response)));
   }
 
   m_dfu_state = ST_FW_VALID;
