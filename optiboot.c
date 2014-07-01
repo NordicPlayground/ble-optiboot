@@ -434,12 +434,12 @@ int main (void)
   uint8_t ch;
   uint8_t pipes[3];
 
-  const uint8_t *valid_addr = (uint8_t *) 0;
-  const uint8_t *pins_addr = (uint8_t *) 1;
-  const uint8_t *credit_addr = (uint8_t *) 13;
-  const uint8_t *pipes_addr = (uint8_t *) 14;
-  const uint8_t *conn_timeout_addr = (uint8_t *) 17;
-  const uint8_t *conn_interval_addr = (uint8_t *) 19;
+  const uint8_t *valid_ble_addr = (uint8_t *) 1;
+  const uint8_t *pins_addr = (uint8_t *) 2;
+  const uint8_t *credit_addr = (uint8_t *) 14;
+  const uint8_t *pipes_addr = (uint8_t *) 15;
+  const uint8_t *conn_timeout_addr = (uint8_t *) 18;
+  const uint8_t *conn_interval_addr = (uint8_t *) 20;
 
   /* After the zero init loop, this is the first code to run.
    *
@@ -497,7 +497,7 @@ int main (void)
 #endif
 
   /* Check to see if we should read BLE data from EEPROM */
-  eeprom_read_block ((void *) &valid_ble, valid_addr, 1);
+  eeprom_read_block ((void *) &valid_ble, valid_ble_addr, 1);
 
   if (valid_ble == 1)
   {
@@ -657,6 +657,8 @@ static void uart_update (void)
   uint8_t ch;
   uint16_t address;
   uint8_t length;
+
+  jump_app_key_clear ();
 
   /* Forever loop */
   for (;;) {
@@ -827,11 +829,8 @@ static void uart_update (void)
       putch(SIGNATURE_1);
       putch(SIGNATURE_2);
     }
-    else if (ch == STK_LEAVE_PROGMODE) { /* 'Q' */
-      verifySpace();
-    }
     else {
-      /* This covers the response to commands like STK_ENTER_PROGMODE */
+      jump_app_key_set ();
       verifySpace();
     }
     putch(STK_OK);

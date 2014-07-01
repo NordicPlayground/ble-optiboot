@@ -28,6 +28,7 @@
 #include <util/delay.h>
 
 #include "../boot.h"
+#include "../jump.h"
 
 #include "lib_aci.h"
 #include "dfu.h"
@@ -236,6 +237,7 @@ static void dfu_reset  (aci_evt_t *aci_evt)
 {
   hal_aci_evt_t aci_data;
 
+  jump_app_key_set ();
   lib_aci_disconnect(m_aci_state, ACI_REASON_TERMINATE);
 
   while(1) {
@@ -333,6 +335,11 @@ void dfu_update (aci_state_t *aci_state, aci_evt_t *aci_evt)
       break;
     case OP_CODE_RECEIVE_FW:
       if (m_dfu_state == ST_RDY || m_dfu_state == ST_RX_INIT_PKT)
+        /* Once we reach this point, the currently loaded application
+         * will be trashed, and we should disable jumping to application
+         * until we have verified the incoming firmware.
+         */
+        jump_app_key_clear ();
         m_dfu_state = ST_RX_DATA_PKT;
       break;
     case OP_CODE_VALIDATE:
