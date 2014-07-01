@@ -434,11 +434,11 @@ int main (void)
   uint8_t ch;
   uint8_t pipes[3];
 
-  const uint8_t *valid_ble_addr = (uint8_t *) 1;
-  const uint8_t *pins_addr = (uint8_t *) 2;
-  const uint8_t *credit_addr = (uint8_t *) 14;
-  const uint8_t *pipes_addr = (uint8_t *) 15;
-  const uint8_t *conn_timeout_addr = (uint8_t *) 18;
+  const uint8_t *valid_ble_addr     = (uint8_t *) 1;
+  const uint8_t *pins_addr          = (uint8_t *) 2;
+  const uint8_t *credit_addr        = (uint8_t *) 14;
+  const uint8_t *pipes_addr         = (uint8_t *) 15;
+  const uint8_t *conn_timeout_addr  = (uint8_t *) 18;
   const uint8_t *conn_interval_addr = (uint8_t *) 20;
 
   /* After the zero init loop, this is the first code to run.
