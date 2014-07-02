@@ -22,6 +22,16 @@ BOOTSZ1 bits must be set in order to select a 2048 word boot sector size.
 In Atmel Studio, this is done by setting BOOTSZ to 2048W_3800 in the fuses pane
 of the device programming window and then programming the fuses.
 
+It is recommended to set the BOOTRST fuse, as starting the device by first
+running the bootloader allows both UART and BLE firmware transfer. If the user
+only requires BLE support, the fuse can be cleared, so that the device starts
+directly in the application. If no application is present, the device will
+fall through the application part of memory and start the bootloader, which is
+at the bottom of flash memory, so that UART can be used to flash an empty
+device. Please note that if the device has no application, nRF8001 setup must
+be loaded into OTP memory, and configuration data must be pre-loaded in EEPROM
+for BLE firmware transfer to work.
+
 Experimental support for firmware transfer using Bluetooth Low Energy has been
 added. By default, the bootloader runs the normal optiboot routine in order to
 flash over UART. In order to flash using Bluetooth, the bootloader depends on
