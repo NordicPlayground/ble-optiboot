@@ -1,6 +1,9 @@
 This directory contains the Optiboot small bootloader for AVR microcontrollers, 
 somewhat modified specifically for the Arduino environment, and heavily modified 
-to support transfer using Bluetooth Low Energy.
+to support transfer using Bluetooth Low Energy. The Nordic Semiconductor nRF8001
+is used to support firmware update over BLE.
+The datasheet of the nRF8001 is located here 
+http://www.nordicsemi.com/eng/Products/Bluetooth-R-low-energy/nRF8001
 
 Optiboot is more fully described here: http://code.google.com/p/optiboot/
 and is the work of Peter Knight (aka Cathedrow), building on work of Jason P
@@ -153,7 +156,7 @@ Done. Your Arduino sketch is now BLE firmware update (DFU) enabled.
 
 Limitations
 -----------
-This releae does not support bootloading over an encrypted link, support for this will be added
+This release does not support bootloading over an encrypted link, support for this will be added
 in the next release.
 
 
