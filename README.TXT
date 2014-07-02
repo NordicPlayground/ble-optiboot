@@ -1,5 +1,4 @@
-This directory contains the Optiboot small bootloader for AVR
-microcontrollers, somewhat modified specifically for the Arduino
+This directory contains the Optiboot small bootloader for AVR microcontrollers, somewhat modified specifically for the Arduino
 environment, and heavily modified to support transfer using
 Bluetooth Low Energy.
 
@@ -15,7 +14,15 @@ at http://code.google.com/p/arduino
 ------------------------------------------------------------
 Support for Bluetooth Low Energy
 
-Support for firmware transfer using Bluetooth Low Energy (alpha release) has been
+Based on Optiboot revision a70f7a426c64
+(https://code.google.com/p/optiboot/source/list)
+
+NOTE: In order for this bootloader to operate correctly, the BOOTSZ0 and
+BOOTSZ1 bits must be set in order to select a 2048 word boot sector size.
+In Atmel Studio, this is done by setting BOOTSZ to 2048W_3800 in the fuses pane
+of the device programming window and then programming the fuses.
+
+Experimental support for firmware transfer using Bluetooth Low Energy has been
 added. By default, the bootloader runs the normal optiboot routine in order to
 flash over UART. In order to flash using Bluetooth, the bootloader depends on
 SPI pin data and other information loaded into EEPROM, in order to use the
@@ -54,21 +61,23 @@ the following procedure is used:
 
 The EEPROM data is stored in the following format:
 
-=================================
-| valid data flag    (1 byte )  |
----------------------------------
-| aci_pins_t         (12 bytes) |
----------------------------------
-| total credit       (1 byte)   |
----------------------------------
-| transfer pipes     (3 bytes)  |
----------------------------------
-| connection timeout (2 bytes)  |
----------------------------------
-| advertise interval (2 bytes)  |
----------------------------------
-| crc16 value        (2 bytes)  |
-=================================
+======================================
+| valid application flag  (1 byte )  |
+--------------------------------------
+| valid nRF8001 data flag (1 byte )  |
+--------------------------------------
+| aci_pins_t              (12 bytes) |
+--------------------------------------
+| total credit            (1 byte)   |
+--------------------------------------
+| transfer pipes          (3 bytes)  |
+--------------------------------------
+| connection timeout      (2 bytes)  |
+--------------------------------------
+| advertise interval      (2 bytes)  |
+--------------------------------------
+| crc16 value             (2 bytes)  |
+======================================
 
 Integrating device firmware update capability to your application:
 
@@ -89,8 +98,6 @@ This signals the start of the DFU.
 
 Limitations
 
-To allow room for the necessary additions, LED blinking was removed from
-the bootloader. 
 This releae does not support bootloading over an encrypted link, support for this will be added
 in the next release.
 
