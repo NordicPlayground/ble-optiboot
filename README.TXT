@@ -1,6 +1,6 @@
-This directory contains the Optiboot small bootloader for AVR microcontrollers, somewhat modified specifically for the Arduino
-environment, and heavily modified to support transfer using
-Bluetooth Low Energy.
+This directory contains the Optiboot small bootloader for AVR microcontrollers, 
+somewhat modified specifically for the Arduino environment, and heavily modified 
+to support transfer using Bluetooth Low Energy.
 
 Optiboot is more fully described here: http://code.google.com/p/optiboot/
 and is the work of Peter Knight (aka Cathedrow), building on work of Jason P
@@ -13,6 +13,7 @@ at http://code.google.com/p/arduino
 
 ------------------------------------------------------------
 Support for Bluetooth Low Energy
+------------------------------------------------------------
 
 Based on Optiboot revision a70f7a426c64
 (https://code.google.com/p/optiboot/source/list)
@@ -89,27 +90,71 @@ The EEPROM data is stored in the following format:
 | crc16 value             (2 bytes)  |
 ======================================
 
-Integrating device firmware update capability to your application:
+Integrating device firmware update capability over BLE to your Arduino sketch:
+------------------------------------------------------------------------------
 
-Add the Nordic Device Firmware update Service to your nRF8001 configuration using the nRFgo Studio.
-(The nRFgo studio is a visual editor for Bluetooth Smart and is a free download from nordicsemi.com)
-An example to add the Nordic Device Firmware Update Service with your BLE configuration is shown in the 
+Add the Nordic Device Firmware update Service to your nRF8001 configuration using 
+the nRFgo Studio. (The nRFgo studio is a visual editor for Bluetooth Smart and is 
+a free download from nordicsemi.com) An example to add the Nordic Device Firmware 
+Update Service with your BLE configuration is shown in the 
 ble_uart_project_with_dfu_template project of the ble-sdk-Arduino in github.com.
 
-The Pipe numbers for the transfer Pipes are the Pipes mapping to the Nordic Device Firmware update Service.
-The Characteristics in the Service are DFU Packet (Properties = Write without response, Notify) and 
-DFU Control Point (Properties = Write with automatic Acknowledgment). The Pipe numbers are stored in the 
-below order in the EEPROM. i.e. Pipe for Write without Reponse, Pipe for Notify and the Pipe for Write.
+The Pipe numbers for the transfer Pipes are the Pipes mapping to the 
+Nordic Device Firmware update Service. The Characteristics in the Service are 
+DFU Packet (Properties = Write without response, Notify) and 
+DFU Control Point (Properties = Write with automatic Acknowledgment). 
+The Pipe numbers are stored in the below order in the EEPROM. 
+i.e. Pipe for Write without Reponse, Pipe for Notify and the Pipe for Write.
 
 Use the bootloader_data_store() function to store the required settings to the EEPROM.
+The functions stores the settings in the bottom of the EEPROM.
 
-Use the bootloader_jump() function when the byte 0x01 is received on the DFU Control Point Characteristic.
+Use the bootloader_jump() function when the byte 0x01 is received on the 
+DFU Control Point Characteristic.
 This signals the start of the DFU.
 
-Limitations
+Features:
+---------
+The firmware update over BLE is supported when the nRF8001 setup is placed in 
+RAM(services.h) and in NVRAM(services_lock.h).
 
+How to use:
+----------
+1. The bootloader_setup.ino file in the ble-sdk-arduino project
+contains all the necessary integration so a user that requires a sketch to support
+DFU over BLE needs to just add the file to their sketch folder.
+
+2. Code added in case DEVICE_STARTED_STANDBY:
+
+   bootloader_data_store(&aci_state, 180, 0x0050);
+   
+   
+3. Code added in case ACI_EVT_DATA_RECEIVED: of the Arduino sketch
+
+       case PIPE_DEVICE_FIRMWARE_UPDATE_BLE_SERVICE_DFU_CONTROL_POINT_RX_ACK_AUTO:
+            if (1 == aci_evt->params.data_received.rx_data.aci_data[0] &&
+                lib_aci_is_pipe_available(&aci_state, PIPE_DEVICE_FIRMWARE_UPDATE_BLE_SERVICE_DFU_CONTROL_POINT_TX))
+            {
+              bootloader_jump_required = true;
+            }
+            break;
+      
+4. Code added in the loop() function in the Arduino sketch
+
+  if (bootloader_jump_required)
+  {
+    bootloader_jump_required = false;
+    bootloader_jump();
+  }
+            
+Done. Your Arduino sketch is now BLE firmware update (DFU) enabled.
+
+
+Limitations
+-----------
 This releae does not support bootloading over an encrypted link, support for this will be added
 in the next release.
+
 
 ------------------------------------------------------------
 Building optiboot for Arduino.
