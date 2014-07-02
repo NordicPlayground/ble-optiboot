@@ -18,8 +18,7 @@ at http://code.google.com/p/arduino
 Support for Bluetooth Low Energy
 ------------------------------------------------------------
 
-Based on Optiboot revision a70f7a426c64
-(https://code.google.com/p/optiboot/source/list)
+Based on Optiboot v5.0
 
 NOTE: In order for this bootloader to operate correctly, the BOOTSZ0 and
 BOOTSZ1 bits must be set in order to select a 2048 word boot sector size.
