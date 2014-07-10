@@ -423,6 +423,8 @@ uint16_t conn_interval;
 # define UART_UDR UDR3
 #endif
 
+#define BOOTLOADER_EEPROM_SIZE 32
+
 /* In main we set up the hardware, read BLE information from EEPROM if it is
  * available, and then continuously poll on both the UART and the BLE link
  * for a hex file transfer. When valid activity is detected on either link,
@@ -434,12 +436,14 @@ int main (void)
   uint8_t ch;
   uint8_t pipes[3];
 
-  const uint8_t *valid_ble_addr     = (uint8_t *) 1;
-  const uint8_t *pins_addr          = (uint8_t *) 2;
-  const uint8_t *credit_addr        = (uint8_t *) 14;
-  const uint8_t *pipes_addr         = (uint8_t *) 15;
-  const uint8_t *conn_timeout_addr  = (uint8_t *) 18;
-  const uint8_t *conn_interval_addr = (uint8_t *) 20;
+  const uint16_t eeprom_base_addr   = E2END - BOOTLOADER_EEPROM_SIZE;
+
+  const uint8_t *valid_ble_addr     = (uint8_t *) (eeprom_base_addr + 1);
+  const uint8_t *pins_addr          = (uint8_t *) (eeprom_base_addr + 2);
+  const uint8_t *credit_addr        = (uint8_t *) (eeprom_base_addr + 14);
+  const uint8_t *pipes_addr         = (uint8_t *) (eeprom_base_addr + 15);
+  const uint8_t *conn_timeout_addr  = (uint8_t *) (eeprom_base_addr + 18);
+  const uint8_t *conn_interval_addr = (uint8_t *) (eeprom_base_addr + 20);
 
   /* After the zero init loop, this is the first code to run.
    *
