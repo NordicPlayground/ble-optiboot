@@ -423,8 +423,6 @@ uint16_t conn_interval;
 # define UART_UDR UDR3
 #endif
 
-#define BOOTLOADER_EEPROM_SIZE 32
-
 /* In main we set up the hardware, read BLE information from EEPROM if it is
  * available, and then continuously poll on both the UART and the BLE link
  * for a hex file transfer. When valid activity is detected on either link,
