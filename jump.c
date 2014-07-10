@@ -4,7 +4,7 @@
 #include <avr/eeprom.h>
 
 uint16_t boot_key __attribute__((section (".noinit")));
-const uint8_t *valid_app_addr = (uint8_t *) 0;
+const uint8_t *valid_app_addr = (uint8_t *) (E2END - BOOTLOADER_EEPROM_SIZE);
 
 void jump_check (void)
 {

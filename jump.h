@@ -2,6 +2,7 @@
  * written by Dean Camera.
  * */
 #define BOOTLOADER_KEY 0xDC42
+#define BOOTLOADER_EEPROM_SIZE 32
 
 /* application_jump_check is placed in the .init3 section, which means it runs
  * before ordinary C code on reset.
