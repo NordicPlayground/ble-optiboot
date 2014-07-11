@@ -223,7 +223,7 @@ static void dfu_image_size_set (aci_evt_t *aci_evt)
   m_image_size =
     (uint32_t)aci_evt->params.data_received.rx_data.aci_data[11] << 24 |
     (uint32_t)aci_evt->params.data_received.rx_data.aci_data[10] << 16 |
-    (uint32_t)aci_evt->params.data_received.rx_data.aci_data[9] << 8  |
+    (uint32_t)aci_evt->params.data_received.rx_data.aci_data[9]  << 8  |
     (uint32_t)aci_evt->params.data_received.rx_data.aci_data[8];
 
   /* Write response */
