@@ -221,10 +221,10 @@ static void dfu_image_size_set (aci_evt_t *aci_evt)
   m_aci_state->pipes_closed_bitmap[byte_idx] &= ~(1 << (pipe % 8));
 
   m_image_size =
-    (uint32_t)aci_evt->params.data_received.rx_data.aci_data[3] << 24 |
-    (uint32_t)aci_evt->params.data_received.rx_data.aci_data[2] << 16 |
-    (uint32_t)aci_evt->params.data_received.rx_data.aci_data[1] << 8  |
-    (uint32_t)aci_evt->params.data_received.rx_data.aci_data[0];
+    (uint32_t)aci_evt->params.data_received.rx_data.aci_data[11] << 24 |
+    (uint32_t)aci_evt->params.data_received.rx_data.aci_data[10] << 16 |
+    (uint32_t)aci_evt->params.data_received.rx_data.aci_data[9] << 8  |
+    (uint32_t)aci_evt->params.data_received.rx_data.aci_data[8];
 
   /* Write response */
   while(!m_send (response, sizeof(response)));
