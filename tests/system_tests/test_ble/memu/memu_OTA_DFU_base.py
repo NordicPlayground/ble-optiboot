@@ -58,7 +58,7 @@ uuidOtaDfuStatusReportCharact        = Nordicsemi.BtUuid('000015331212EFDE152378
 #Descriptor UUID
 uuidClientCharactConfigDescriptor    = Nordicsemi.BtUuid(0x2902)
 
-REQUIRED_SERVICES           = [uuidOTAService.ToString()]
+REQUIRED_SERVICES           = []
 REQUIRED_SOLICITED_SERVICES = []
 
 ##############################################################################################
