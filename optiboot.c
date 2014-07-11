@@ -219,6 +219,7 @@ asm("  .section .version\n"
 #include "jump.h"
 
 /* Bluetooth files */
+#include "BLE/bonding.h"
 #include "BLE/lib_aci.h"
 #include "BLE/aci_evts.h"
 #include "BLE/dfu.h"
@@ -562,6 +563,9 @@ static void ble_update (uint8_t *pipes)
   hal_aci_evt_t aci_data;
   aci_evt_t *aci_evt;
   uint8_t pipe;
+  uint8_t eeprom_status = 0xFF;
+
+  const uint8_t *bond_status_addr     = (uint8_t *) (0);
 
   /* Attempt to grab an event from the BLE message queue */
   if (!lib_aci_event_get(&aci_state, &aci_data)) {
