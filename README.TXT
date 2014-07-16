@@ -153,10 +153,13 @@ DFU over BLE needs to just add the file to their sketch folder.
 Done. Your Arduino sketch is now BLE firmware update (DFU) enabled.
 
 
-Limitations
------------
-This release does not support bootloading over an encrypted link, support for this will be added
-in the next release.
+
+Support bootloading over an encrypted and open links. 
+
+Limitations:
+============
+The bond information stored in EEPROM is not used by the bootloader when the nRF8001 Setup is in
+OTP, support for this will be added in the next release.
 
 
 ------------------------------------------------------------
