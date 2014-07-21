@@ -38,12 +38,11 @@
 *****************************************************************************/
 
 static void dfu_data_pkt_handle (aci_evt_t *aci_evt);
-static void dfu_init_pkt_handle (aci_evt_t *aci_evt);
+static void dfu_init_pkt_handle (void);
 static void dfu_image_size_set (aci_evt_t *aci_evt);
-static void dfu_image_validate (aci_evt_t *aci_evt);
-static void dfu_reset (aci_evt_t *aci_evt);
+static void dfu_image_validate (void);
+static void dfu_reset (void);
 
-static void m_notify ();
 static bool m_send (uint8_t *buff, uint8_t buff_len);
 static void m_write_page (uint16_t page, uint8_t *buff);
 
@@ -66,34 +65,10 @@ static uint8_t      m_pipe_array[3];
 * Static Functions
 *****************************************************************************/
 
-/* Send receive notification with number of bytes received */
-static void m_notify (void)
-{
-  uint8_t response[] = {OP_CODE_PKT_RCPT_NOTIF,
-    0,
-    (uint8_t) (m_num_of_firmware_bytes_rcvd >> 0),
-    (uint8_t) (m_num_of_firmware_bytes_rcvd >> 8),
-    (uint8_t) (m_num_of_firmware_bytes_rcvd >> 16),
-    (uint8_t) (m_num_of_firmware_bytes_rcvd >> 24)};
-
-  while(!m_send (response, sizeof(response)));
-}
-
 /* Transmit buffer_len number of bytes from buffer to the BLE controller */
 static bool m_send (uint8_t *buff, uint8_t buff_len)
 {
   bool status;
-
-  /* Abort if the notification pipe isn't available */
-  if (!lib_aci_is_pipe_available (m_aci_state, m_pipe_array[1])) {
-    return false;
-  }
-
-  /* Abort if we don't have the necessary credit to transmit */
-  if (m_aci_state->data_credit_available == 0)
-  {
-    return false;
-  }
 
   /* Put the notification message in the queue */
   status = lib_aci_send_data(m_pipe_array[1], buff, buff_len);
@@ -110,30 +85,26 @@ static bool m_send (uint8_t *buff, uint8_t buff_len)
 /* Write the contents of buf to the given flash page */
 static void m_write_page (uint16_t page_num, uint8_t *buff)
 {
-  uint16_t i;
-  uint16_t word;
+  uint16_t size = SPM_PAGESIZE / 2;
+  uint16_t addr = page_num;
 
-  /* Erase flash page, then wait while the memory is written */
-  __boot_page_erase_short (page_num);
+  /* If the page is still erasing, we need to wait for it to complete */
   boot_spm_busy_wait ();
 
   /* Fill the page buffer */
-  for (i = 0; i < SPM_PAGESIZE; i += 2)
+  do
   {
-      /* Set up little-endian word. */
-      word = *buff++;
-      word += (*buff++) << 8;
-
-      __boot_page_fill_short (page_num + i, word);
-  }
+    /* Set up little-endian word. */
+    uint16_t a;
+    a = *buff++;
+    a += (*buff++) << 8;
+    __boot_page_fill_short (addr, a);
+    addr += 2;
+  } while (--size);
 
   /* Store buffer in flash page, then wait while the memory is written */
   __boot_page_write_short (page_num);
   boot_spm_busy_wait();
-
-  /* Reenable RWW-section again. We need this if we want to jump back
-   * to the application after bootloading. */
-  boot_rww_enable ();
 }
 
 /* Receive a firmware packet, and write it to flash. Also sends receipt
@@ -141,13 +112,13 @@ static void m_write_page (uint16_t page_num, uint8_t *buff)
  */
 static void dfu_data_pkt_handle (aci_evt_t *aci_evt)
 {
-  static uint8_t response[] = {OP_CODE_RESPONSE,
+  const aci_evt_params_data_received_t *data_received =
+    (aci_evt_params_data_received_t *) &(aci_evt->params);
+  const uint8_t bytes_received = aci_evt->len-2;
+
+  static const uint8_t receive_app_success[] = {OP_CODE_RESPONSE,
      BLE_DFU_RECEIVE_APP_PROCEDURE,
      BLE_DFU_RESP_VAL_SUCCESS};
-
-  aci_evt_params_data_received_t *data_received;
-  uint8_t bytes_received = aci_evt->len-2;
-  uint8_t i;
 
   /* If package notification is enabled, decrement the counter and issue a
    * notification if required
@@ -159,17 +130,31 @@ static void dfu_data_pkt_handle (aci_evt_t *aci_evt)
     /* Notification is required. Issue notification and reset counter */
     if (m_pkt_notif_target_cnt == 0)
     {
+      uint8_t notification[6] = {OP_CODE_PKT_RCPT_NOTIF,
+        0,
+        (uint8_t) (m_num_of_firmware_bytes_rcvd >> 0),
+        (uint8_t) (m_num_of_firmware_bytes_rcvd >> 8),
+        (uint8_t) (m_num_of_firmware_bytes_rcvd >> 16),
+        (uint8_t) (m_num_of_firmware_bytes_rcvd >> 24)};
+
       m_pkt_notif_target_cnt = m_pkt_notif_target;
-      m_notify ();
+      m_send (notification, 6);
     }
   }
 
-  /* Write received data to page buffer. When the buffer is full, write the
-   * buffer to flash.
+  /* Write received data to page buffer.
+   * If the buffer is empty, we've received the first data in a new page,
+   * which should be erased while the buffer fills. When the buffer is full,
+   * we write it to flash.
    */
-  data_received = (aci_evt_params_data_received_t *) &(aci_evt->params);
+  uint8_t i;
   for (i = 0; i < bytes_received; i++)
   {
+    if (m_page_buff_index == 0)
+    {
+      __boot_page_erase_short (m_page_address);
+    }
+
     m_page_buff[m_page_buff_index++] = data_received->rx_data.aci_data[i];
 
     if (m_page_buff_index == SPM_PAGESIZE)
@@ -188,56 +173,8 @@ static void dfu_data_pkt_handle (aci_evt_t *aci_evt)
     m_write_page (m_page_address++, m_page_buff);
 
     /* Send firmware received notification */
-    while(!m_send (response, sizeof(response)));
+    m_send ((uint8_t *) receive_app_success, 3);
   }
-}
-
-/* Receive and process an init packet */
-static void dfu_init_pkt_handle (aci_evt_t *aci_evt)
-{
-  static uint8_t response[] = {OP_CODE_RESPONSE,
-     BLE_DFU_INIT_PROCEDURE,
-     BLE_DFU_RESP_VAL_SUCCESS};
-
-  /* Send init received notification */
-  while(!m_send (response, sizeof(response)));
-}
-
-/* Receive and store the firmware image size */
-static void dfu_image_size_set (aci_evt_t *aci_evt)
-{
-  const uint8_t pipe = m_pipe_array[1];
-  const uint8_t byte_idx = pipe / 8;
-  static uint8_t response[] = {OP_CODE_RESPONSE, BLE_DFU_START_PROCEDURE,
-    BLE_DFU_RESP_VAL_SUCCESS};
-
-  /* There are two paths into the bootloader. We either got here because
-   * there is no application, or we jumped from application.
-   * In the latter case, as we haven't received an event from the nRF8001
-   * with the pipe statuses, we have to assume that the Control Point
-   * TX pipe is open. At this point, that is safe.
-   */
-  m_aci_state->pipes_open_bitmap[byte_idx] |= (1 << (pipe % 8));
-  m_aci_state->pipes_closed_bitmap[byte_idx] &= ~(1 << (pipe % 8));
-
-  m_image_size =
-    (uint32_t)aci_evt->params.data_received.rx_data.aci_data[11] << 24 |
-    (uint32_t)aci_evt->params.data_received.rx_data.aci_data[10] << 16 |
-    (uint32_t)aci_evt->params.data_received.rx_data.aci_data[9]  << 8  |
-    (uint32_t)aci_evt->params.data_received.rx_data.aci_data[8];
-
-  /* Write response */
-  while(!m_send (response, sizeof(response)));
-
-  m_dfu_state = ST_RDY;
-}
-
-/* Disconnect from the nRF8001 and do a reset */
-static void dfu_reset  (aci_evt_t *aci_evt)
-{
-  while (!lib_aci_radio_reset());
-
-  m_dfu_state = ST_IDLE;
 }
 
 /* Activate the received firmware image */
@@ -259,20 +196,62 @@ static void dfu_image_activate (aci_evt_t *aci_evt)
   }
 }
 
-/* Validate the received firmware image, and transmit the result */
-static void dfu_image_validate (aci_evt_t *aci_evt)
+/* Receive and store the firmware image size */
+static void dfu_image_size_set (aci_evt_t *aci_evt)
 {
-  uint8_t response[] = {OP_CODE_RESPONSE,
+  static const uint8_t dfu_start_success[] = {OP_CODE_RESPONSE,
+    BLE_DFU_START_PROCEDURE, BLE_DFU_RESP_VAL_SUCCESS};
+
+  const uint8_t pipe = m_pipe_array[1];
+  const uint8_t byte_idx = pipe / 8;
+  const uint8_t byte_mask = (1 << (pipe % 8));
+
+  /* There are two paths into the bootloader. We either got here because
+   * there is no application, or we jumped from application.
+   * In the latter case, as we haven't received an event from the nRF8001
+   * with the pipe statuses, we have to assume that the Control Point
+   * TX pipe is open. At this point, that is safe.
+   */
+  m_aci_state->pipes_open_bitmap[byte_idx] |= byte_mask;
+  m_aci_state->pipes_closed_bitmap[byte_idx] &= ~byte_mask;
+
+  m_image_size =
+    (uint32_t)aci_evt->params.data_received.rx_data.aci_data[11] << 24 |
+    (uint32_t)aci_evt->params.data_received.rx_data.aci_data[10] << 16 |
+    (uint32_t)aci_evt->params.data_received.rx_data.aci_data[9]  << 8  |
+    (uint32_t)aci_evt->params.data_received.rx_data.aci_data[8];
+
+  /* Write response */
+  m_send ((uint8_t *) dfu_start_success, 3);
+
+  m_dfu_state = ST_RDY;
+}
+
+/* Validate the received firmware image, and transmit the result */
+static void dfu_image_validate (void)
+{
+  static const uint8_t validate_success[] = {OP_CODE_RESPONSE,
     BLE_DFU_VALIDATE_PROCEDURE,
     BLE_DFU_RESP_VAL_SUCCESS};
 
   /* Completed successfully */
   if (m_num_of_firmware_bytes_rcvd == m_image_size)
   {
-    while(!m_send(response, sizeof(response)));
+    m_send((uint8_t *) validate_success, 3);
   }
 
   m_dfu_state = ST_FW_VALID;
+}
+
+/* Receive and process an init packet */
+static void dfu_init_pkt_handle (void)
+{
+  static const uint8_t init_procedure_success[] = {OP_CODE_RESPONSE,
+     BLE_DFU_INIT_PROCEDURE,
+     BLE_DFU_RESP_VAL_SUCCESS};
+
+  /* Send init received notification */
+  m_send ((uint8_t *) init_procedure_success, 3);
 }
 
 /* Update the interval between receipt notifications */
@@ -282,6 +261,14 @@ static void dfu_notification_set (aci_evt_t *aci_evt)
     (uint16_t)aci_evt->params.data_received.rx_data.aci_data[2] << 8 |
     (uint16_t)aci_evt->params.data_received.rx_data.aci_data[1];
   m_pkt_notif_target_cnt = m_pkt_notif_target;
+}
+
+/* Disconnect from the nRF8001 and do a reset */
+static void dfu_reset (void)
+{
+  while (!lib_aci_radio_reset());
+
+  m_dfu_state = ST_IDLE;
 }
 
 /*****************************************************************************
@@ -324,7 +311,7 @@ void dfu_update (aci_state_t *aci_state, aci_evt_t *aci_evt)
           dfu_image_size_set(aci_evt);
           break;
         case ST_RX_INIT_PKT:
-          dfu_init_pkt_handle(aci_evt);
+          dfu_init_pkt_handle();
           break;
         case ST_RX_DATA_PKT:
           dfu_data_pkt_handle(aci_evt);
@@ -346,14 +333,14 @@ void dfu_update (aci_state_t *aci_state, aci_evt_t *aci_evt)
       break;
     case OP_CODE_VALIDATE:
       if (m_dfu_state == ST_RX_DATA_PKT)
-        dfu_image_validate(aci_evt);
+        dfu_image_validate ();
       break;
     case OP_CODE_ACTIVATE_N_RESET:
       if (m_dfu_state == ST_FW_VALID)
         dfu_image_activate(aci_evt);
       break;
     case OP_CODE_SYS_RESET:
-      dfu_reset(aci_evt);
+      dfu_reset();
       break;
     case OP_CODE_PKT_RCPT_NOTIF_REQ:
       dfu_notification_set (aci_evt);

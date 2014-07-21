@@ -41,47 +41,27 @@
 
 #define LIB_ACI_DEFAULT_CREDIT_NUMBER   1
 
-static hal_aci_data_t reset_msg = {
-  .buffer = {MSG_BASEBAND_RESET_LEN, ACI_CMD_RADIO_RESET}
-};
-
-static hal_aci_data_t connect_msg = {
-  .buffer = {MSG_CONNECT_LEN, ACI_CMD_CONNECT}
-};
-
-static hal_aci_data_t disconnect_msg = {
-  .buffer = {MSG_DISCONNECT_LEN, ACI_CMD_DISCONNECT}
-};
-
-static hal_aci_data_t send_data_msg = {
-  .buffer = {MSG_SEND_DATA_BASE_LEN, ACI_CMD_SEND_DATA}
-};
-
 /*
 Global additionally used used in aci_setup
 */
 
 bool lib_aci_is_pipe_available(aci_state_t *aci_stat, uint8_t pipe)
 {
-  uint8_t byte_idx;
-
-  byte_idx = pipe / 8;
-  if (aci_stat->pipes_open_bitmap[byte_idx] & (0x01 << (pipe % 8)))
-  {
-    return(true);
-  }
-  return(false);
+  return aci_stat->pipes_open_bitmap[pipe / 8] & (1 << (pipe % 8));
 }
 
 bool lib_aci_radio_reset(void)
 {
-  return hal_aci_tl_send(&reset_msg);
+  static const hal_aci_data_t reset_msg = {
+    .buffer = {MSG_BASEBAND_RESET_LEN, ACI_CMD_RADIO_RESET}
+  };
+
+  return hal_aci_tl_send((hal_aci_data_t *) &reset_msg);
 }
 
 void lib_aci_init(aci_state_t *aci_stat)
 {
   uint8_t i;
-
   for (i = 0; i < PIPES_ARRAY_SIZE; i++)
   {
     aci_stat->pipes_open_bitmap[i]          = 0;
@@ -100,6 +80,10 @@ void lib_aci_init(aci_state_t *aci_stat)
 
 bool lib_aci_connect(uint16_t run_timeout, uint16_t adv_interval)
 {
+  static hal_aci_data_t connect_msg = {
+    .buffer = {MSG_CONNECT_LEN, ACI_CMD_CONNECT}
+  };
+
   uint8_t* const buffer = &(connect_msg.buffer[0]);
 
   *(buffer + OFFSET_ACI_CMD_T_CONNECT +
@@ -123,6 +107,10 @@ bool lib_aci_connect(uint16_t run_timeout, uint16_t adv_interval)
 
 bool lib_aci_disconnect(aci_state_t *aci_stat, aci_disconnect_reason_t reason)
 {
+  static hal_aci_data_t disconnect_msg = {
+    .buffer = {MSG_DISCONNECT_LEN, ACI_CMD_DISCONNECT}
+  };
+
   bool ret_val;
   uint8_t* const buffer = &(disconnect_msg.buffer[0]);
 
@@ -151,6 +139,10 @@ bool lib_aci_disconnect(aci_state_t *aci_stat, aci_disconnect_reason_t reason)
 
 bool lib_aci_send_data(uint8_t pipe, uint8_t *p_value, uint8_t size)
 {
+  static hal_aci_data_t send_data_msg = {
+    .buffer = {MSG_SEND_DATA_BASE_LEN, ACI_CMD_SEND_DATA}
+  };
+
   uint8_t* const buffer = &(send_data_msg.buffer[0]);
 
   *(buffer + OFFSET_ACI_CMD_T_LEN) = MSG_SEND_DATA_BASE_LEN + size;
@@ -199,7 +191,6 @@ bool lib_aci_event_get(aci_state_t *aci_stat, hal_aci_evt_t *p_aci_evt_data)
         case ACI_EVT_DISCONNECTED:
             {
                 uint8_t i=0;
-
                 for (i=0; i < PIPES_ARRAY_SIZE; i++)
                 {
                   aci_stat->pipes_open_bitmap[i] = 0;
