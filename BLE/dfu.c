@@ -38,10 +38,10 @@
 *****************************************************************************/
 
 static void dfu_data_pkt_handle (aci_evt_t *aci_evt);
-static void dfu_init_pkt_handle (aci_evt_t *aci_evt);
+static void dfu_init_pkt_handle (void);
 static void dfu_image_size_set (aci_evt_t *aci_evt);
-static void dfu_image_validate (aci_evt_t *aci_evt);
-static void dfu_reset (aci_evt_t *aci_evt);
+static void dfu_image_validate (void);
+static void dfu_reset (void);
 
 static void m_notify ();
 static bool m_send (uint8_t *buff, uint8_t buff_len);
@@ -193,7 +193,7 @@ static void dfu_data_pkt_handle (aci_evt_t *aci_evt)
 }
 
 /* Receive and process an init packet */
-static void dfu_init_pkt_handle (aci_evt_t *aci_evt)
+static void dfu_init_pkt_handle (void)
 {
   static uint8_t response[] = {OP_CODE_RESPONSE,
      BLE_DFU_INIT_PROCEDURE,
@@ -208,6 +208,8 @@ static void dfu_image_size_set (aci_evt_t *aci_evt)
 {
   const uint8_t pipe = m_pipe_array[1];
   const uint8_t byte_idx = pipe / 8;
+  const uint8_t mask = (1 << (pipe % 8));
+
   static uint8_t response[] = {OP_CODE_RESPONSE, BLE_DFU_START_PROCEDURE,
     BLE_DFU_RESP_VAL_SUCCESS};
 
@@ -217,8 +219,8 @@ static void dfu_image_size_set (aci_evt_t *aci_evt)
    * with the pipe statuses, we have to assume that the Control Point
    * TX pipe is open. At this point, that is safe.
    */
-  m_aci_state->pipes_open_bitmap[byte_idx] |= (1 << (pipe % 8));
-  m_aci_state->pipes_closed_bitmap[byte_idx] &= ~(1 << (pipe % 8));
+  m_aci_state->pipes_open_bitmap[byte_idx] |= mask;
+  m_aci_state->pipes_closed_bitmap[byte_idx] &= ~mask;
 
   m_image_size =
     (uint32_t)aci_evt->params.data_received.rx_data.aci_data[11] << 24 |
@@ -233,7 +235,7 @@ static void dfu_image_size_set (aci_evt_t *aci_evt)
 }
 
 /* Disconnect from the nRF8001 and do a reset */
-static void dfu_reset  (aci_evt_t *aci_evt)
+static void dfu_reset (void)
 {
   while (!lib_aci_radio_reset());
 
@@ -260,7 +262,7 @@ static void dfu_image_activate (aci_evt_t *aci_evt)
 }
 
 /* Validate the received firmware image, and transmit the result */
-static void dfu_image_validate (aci_evt_t *aci_evt)
+static void dfu_image_validate (void)
 {
   uint8_t response[] = {OP_CODE_RESPONSE,
     BLE_DFU_VALIDATE_PROCEDURE,
@@ -324,7 +326,7 @@ void dfu_update (aci_state_t *aci_state, aci_evt_t *aci_evt)
           dfu_image_size_set(aci_evt);
           break;
         case ST_RX_INIT_PKT:
-          dfu_init_pkt_handle(aci_evt);
+          dfu_init_pkt_handle();
           break;
         case ST_RX_DATA_PKT:
           dfu_data_pkt_handle(aci_evt);
@@ -346,14 +348,14 @@ void dfu_update (aci_state_t *aci_state, aci_evt_t *aci_evt)
       break;
     case OP_CODE_VALIDATE:
       if (m_dfu_state == ST_RX_DATA_PKT)
-        dfu_image_validate(aci_evt);
+        dfu_image_validate ();
       break;
     case OP_CODE_ACTIVATE_N_RESET:
       if (m_dfu_state == ST_FW_VALID)
         dfu_image_activate(aci_evt);
       break;
     case OP_CODE_SYS_RESET:
-      dfu_reset(aci_evt);
+      dfu_reset();
       break;
     case OP_CODE_PKT_RCPT_NOTIF_REQ:
       dfu_notification_set (aci_evt);
