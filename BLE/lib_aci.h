@@ -155,7 +155,7 @@ bool lib_aci_is_pipe_available(aci_state_t *aci_stat, uint8_t pipe);
  *  @details The function sends a @c BasebandReset command to the radio.
  *  @return True if the transaction is successfully initiated.
  */
-bool lib_aci_radio_reset(aci_state_t *aci_stat);
+bool lib_aci_radio_reset(void);
 
 /* @} */
 
