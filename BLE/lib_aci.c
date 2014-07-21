@@ -47,14 +47,7 @@ Global additionally used used in aci_setup
 
 bool lib_aci_is_pipe_available(aci_state_t *aci_stat, uint8_t pipe)
 {
-  uint8_t byte_idx;
-
-  byte_idx = pipe / 8;
-  if (aci_stat->pipes_open_bitmap[byte_idx] & (0x01 << (pipe % 8)))
-  {
-    return(true);
-  }
-  return(false);
+  return aci_stat->pipes_open_bitmap[pipe/8] & (1 << (pipe % 8));
 }
 
 bool lib_aci_radio_reset(aci_state_t *aci_stat)
