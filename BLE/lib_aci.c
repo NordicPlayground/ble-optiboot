@@ -80,6 +80,11 @@ void lib_aci_init(aci_state_t *aci_stat)
 
   hal_aci_tl_init(&aci_stat->aci_pins);
 
+  /* Wait for a bit, as the lines may be floating if we got here after a power
+   * reset.
+   */
+  _delay_ms(65);
+
   /* If RDYN is not low, there is no message pending on the nrF8001, at which
    * point we should performa a radio reset to get in a known state.
    */
