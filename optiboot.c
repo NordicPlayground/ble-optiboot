@@ -500,7 +500,7 @@ int main (void)
 #endif
 
   /* Check to see if we should read BLE data from EEPROM */
-  eeprom_read_block ((void *) &valid_ble, valid_ble_addr, 1);
+  valid_ble = eeprom_read_byte (valid_ble_addr);
 
   if (valid_ble == 1)
   {
@@ -509,8 +509,7 @@ int main (void)
         sizeof(aci_pins_t));
 
     /* Read credit data */
-    eeprom_read_block ((void *) &(aci_state.data_credit_total), credit_addr,
-        1);
+    aci_state.data_credit_total = eeprom_read_byte (credit_addr);
     aci_state.data_credit_available = aci_state.data_credit_total;
 
     /* Read pipe data */
@@ -584,21 +583,28 @@ static void ble_update (uint8_t *pipes)
              * is handled correctly. */
             _delay_ms (20);
         }
-        else {
+        else
+        {
+          /* Check to see if we should read bond data from EEPROM */
+          eeprom_read_block ((void *) &eeprom_status, bond_status_addr, 1);
+
+          if (eeprom_status != 0xFF)
+          {
+            bond_data_restore (&aci_state, eeprom_status);
+          }
+
           lib_aci_connect (conn_timeout, conn_interval);
         }
       }
-      break; /* ACI Device Started Event */
+      break; /* ACI_EVT_DEVICE_STARTED */
 
     case ACI_EVT_CMD_RSP:
-      if (aci_evt->params.cmd_rsp.cmd_opcode == ACI_CMD_RADIO_RESET)
+      if ((aci_evt->params.cmd_rsp.cmd_opcode == ACI_CMD_RADIO_RESET) &&
+          (aci_evt->params.cmd_rsp.cmd_status == ACI_STATUS_SUCCESS))
       {
-          if (aci_evt->params.cmd_rsp.cmd_status == ACI_STATUS_SUCCESS)
-          {
-            lib_aci_connect (conn_timeout, conn_interval);
-          }
+        lib_aci_connect (conn_timeout, conn_interval);
       }
-      break; /* ACI Command Response */
+      break; /* ACI_EVT_CMD_RSP */
 
     case ACI_EVT_CONNECTED:
       watchdogReset();
@@ -606,13 +612,17 @@ static void ble_update (uint8_t *pipes)
        * the bootloader. Hopefully we did.
        */
       aci_state.data_credit_available = aci_state.data_credit_total;
-      break;
+      break; /* ACI_EVT_CONNECTED */
+
+    case ACI_EVT_DISCONNECTED:
+      lib_aci_connect (conn_timeout, conn_interval);
+      break; /* ACI_EVT_DISCONNECTED */
 
     case ACI_EVT_DATA_CREDIT:
       watchdogReset();
       aci_state.data_credit_available = aci_state.data_credit_available +
                                         aci_evt->params.data_credit.credit;
-      break;
+      break; /* ACI_EVT_DATA_CREDIT */
 
     case ACI_EVT_PIPE_ERROR:
       watchdogReset();
@@ -623,7 +633,7 @@ static void ble_update (uint8_t *pipes)
           ACI_STATUS_ERROR_PEER_ATT_ERROR) {
         aci_state.data_credit_available++;
       }
-      break;
+      break; /* ACI_EVT_PIPE_ERROR */
 
     case ACI_EVT_DATA_RECEIVED:
       watchdogReset();
@@ -638,15 +648,7 @@ static void ble_update (uint8_t *pipes)
 
         dfu_update(&aci_state, aci_evt);
       }
-      break;
-
-    case ACI_EVT_DISCONNECTED:
-      lib_aci_connect (conn_timeout, conn_interval);
-      break;
-
-    case ACI_EVT_HW_ERROR:
-      lib_aci_connect (conn_timeout, conn_interval);
-    break;
+      break; /* ACI_EVT_DATA_RECEIVED */
 
     default:
       break;
