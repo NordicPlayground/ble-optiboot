@@ -186,12 +186,18 @@ static uint8_t m_spi_readwrite(const uint8_t aci_byte)
 
 void hal_aci_tl_init(aci_pins_t *aci_pins)
 {
+  volatile uint8_t *reset_out = pin_to_output (aci_pins->reset_pin);
+  volatile uint8_t *reset_mode = pin_to_mode (aci_pins->reset_pin);
+
   /* Initialize the ACI Command queue. */
   aci_queue_init(&aci_tx_q);
   aci_queue_init(&aci_rx_q);
 
   /* Set local pin struct pointer */
   pins = aci_pins;
+
+  *reset_mode |= pin_to_bit_mask(pins->reset_pin);
+  *reset_out |= pin_to_bit_mask(pins->reset_pin);
 
   /* Set up SPI */
   m_spi_init ();
