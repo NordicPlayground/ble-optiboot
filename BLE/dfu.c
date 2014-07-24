@@ -235,7 +235,7 @@ static void dfu_image_size_set (aci_evt_t *aci_evt)
 /* Disconnect from the nRF8001 and do a reset */
 static void dfu_reset  (aci_evt_t *aci_evt)
 {
-  while (!lib_aci_radio_reset(m_aci_state));
+  while (!lib_aci_radio_reset());
 
   m_dfu_state = ST_IDLE;
 }
