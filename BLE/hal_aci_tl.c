@@ -39,7 +39,7 @@ static aci_queue_t  aci_tx_q;
 static aci_queue_t  aci_rx_q;
 static aci_pins_t   *pins;
 
-static void m_aci_event_check(void)
+static inline void m_aci_event_check(void)
 {
   hal_aci_data_t data_to_send;
   hal_aci_data_t received_data;
@@ -105,7 +105,7 @@ static inline void m_aci_reqn_enable (void)
   *reqn_out &= ~pin_to_bit_mask(pins->reqn_pin);
 }
 
-static void m_aci_spi_transfer (hal_aci_data_t * data_to_send, hal_aci_data_t * received_data)
+static inline void m_aci_spi_transfer (hal_aci_data_t * data_to_send, hal_aci_data_t * received_data)
 {
   uint8_t byte_cnt;
   uint8_t byte_sent_cnt;
@@ -145,7 +145,7 @@ static void m_aci_spi_transfer (hal_aci_data_t * data_to_send, hal_aci_data_t * 
   m_aci_reqn_disable();
 }
 
-static void m_spi_init (void)
+static inline void m_spi_init (void)
 {
   volatile uint8_t *miso_mode = pin_to_mode (pins->miso_pin);
   volatile uint8_t *mosi_mode = pin_to_mode (pins->mosi_pin);
@@ -177,7 +177,7 @@ static void m_spi_init (void)
   SPCR |= _BV(SPE) | _BV(DORD) | _BV(MSTR) | _BV(SPI2X) | _BV(SPR0);
 }
 
-static uint8_t m_spi_readwrite(const uint8_t aci_byte)
+static inline uint8_t m_spi_readwrite(const uint8_t aci_byte)
 {
   SPDR = aci_byte;
   while(!(SPSR & (1<<SPIF)));
