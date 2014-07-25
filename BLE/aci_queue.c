@@ -50,8 +50,12 @@ bool aci_queue_dequeue(aci_queue_t *aci_q, hal_aci_data_t *p_data)
     return false;
   }
 
-  memcpy((uint8_t *)p_data, (uint8_t *)&(aci_q->aci_data[aci_q->head]), sizeof(hal_aci_data_t));
-  aci_q->head = (aci_q->head + 1) % ACI_QUEUE_SIZE;
+  const uint8_t index = aci_q->head & (ACI_QUEUE_SIZE - 1);
+
+  memcpy((uint8_t *)p_data,
+      (uint8_t *)&(aci_q->aci_data[index]),
+      sizeof(hal_aci_data_t));
+  ++aci_q->head;
 
   return true;
 }
@@ -59,15 +63,18 @@ bool aci_queue_dequeue(aci_queue_t *aci_q, hal_aci_data_t *p_data)
 bool aci_queue_enqueue(aci_queue_t *aci_q, hal_aci_data_t *p_data)
 {
   const uint8_t length = p_data->buffer[0];
+  const uint8_t index = aci_q->tail & (ACI_QUEUE_SIZE - 1);
 
   if (aci_queue_is_full(aci_q))
   {
     return false;
   }
 
-  aci_q->aci_data[aci_q->tail].status_byte = 0;
-  memcpy((uint8_t *)&(aci_q->aci_data[aci_q->tail].buffer[0]), (uint8_t *)&p_data->buffer[0], length + 1);
-  aci_q->tail = (aci_q->tail + 1) % ACI_QUEUE_SIZE;
+  aci_q->aci_data[index].status_byte = 0;
+  memcpy((uint8_t *)&(aci_q->aci_data[index].buffer[0]),
+      (uint8_t *)&p_data->buffer[0],
+      length + 1);
+  ++aci_q->tail;
 
   return true;
 }
@@ -79,7 +86,5 @@ bool aci_queue_is_empty(aci_queue_t *aci_q)
 
 bool aci_queue_is_full(aci_queue_t *aci_q)
 {
-  uint8_t next = (aci_q->tail + 1) % ACI_QUEUE_SIZE;
-
-  return (next == aci_q->head);
+  return (aci_q->tail == aci_q->head + ACI_QUEUE_SIZE);
 }

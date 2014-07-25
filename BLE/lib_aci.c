@@ -47,31 +47,21 @@ Global additionally used used in aci_setup
 
 bool lib_aci_is_pipe_available(aci_state_t *aci_stat, uint8_t pipe)
 {
-  uint8_t byte_idx;
-
-  byte_idx = pipe / 8;
-  if (aci_stat->pipes_open_bitmap[byte_idx] & (0x01 << (pipe % 8)))
-  {
-    return(true);
-  }
-  return(false);
+  return aci_stat->pipes_open_bitmap[pipe / 8] & (1 << (pipe % 8));
 }
 
-bool lib_aci_radio_reset(aci_state_t *aci_stat)
+bool lib_aci_radio_reset(void)
 {
-  hal_aci_data_t  msg_to_send;
-  uint8_t *buffer = &(msg_to_send.buffer[0]);
+  static const hal_aci_data_t reset_msg = {
+    .buffer = {MSG_BASEBAND_RESET_LEN, ACI_CMD_RADIO_RESET}
+  };
 
-  *(buffer + OFFSET_ACI_CMD_T_LEN) = MSG_BASEBAND_RESET_LEN;
-  *(buffer + OFFSET_ACI_CMD_T_CMD_OPCODE) = ACI_CMD_RADIO_RESET;
-
-  return hal_aci_tl_send(&msg_to_send);
+  return hal_aci_tl_send((hal_aci_data_t *) &reset_msg);
 }
 
 void lib_aci_init(aci_state_t *aci_stat)
 {
   uint8_t i;
-
   for (i = 0; i < PIPES_ARRAY_SIZE; i++)
   {
     aci_stat->pipes_open_bitmap[i]          = 0;
@@ -84,60 +74,51 @@ void lib_aci_init(aci_state_t *aci_stat)
    * point we should performa a radio reset to get in a known state.
    */
   if (!hal_aci_tl_rdyn()) {
-    lib_aci_radio_reset(aci_stat);
+    lib_aci_radio_reset();
   }
 }
 
 bool lib_aci_connect(uint16_t run_timeout, uint16_t adv_interval)
 {
-  hal_aci_data_t  msg_to_send;
-  aci_cmd_params_connect_t aci_cmd_params_connect;
+  static hal_aci_data_t connect_msg = {
+    .buffer = {MSG_CONNECT_LEN, ACI_CMD_CONNECT}
+  };
 
-  uint8_t *buffer = &(msg_to_send.buffer[0]);
-
-  aci_cmd_params_connect.timeout      = run_timeout;
-  aci_cmd_params_connect.adv_interval = adv_interval;
-
-  *(buffer + OFFSET_ACI_CMD_T_LEN) = MSG_CONNECT_LEN;
-  *(buffer + OFFSET_ACI_CMD_T_CMD_OPCODE) = ACI_CMD_CONNECT;
+  uint8_t* const buffer = &(connect_msg.buffer[0]);
 
   *(buffer + OFFSET_ACI_CMD_T_CONNECT +
       OFFSET_ACI_CMD_PARAMS_CONNECT_T_TIMEOUT_MSB) =
-    (uint8_t)(aci_cmd_params_connect.timeout >> 8);
+    (uint8_t)(run_timeout >> 8);
 
   *(buffer + OFFSET_ACI_CMD_T_CONNECT +
       OFFSET_ACI_CMD_PARAMS_CONNECT_T_TIMEOUT_LSB) =
-    (uint8_t)(aci_cmd_params_connect.timeout);
+    (uint8_t)(run_timeout);
 
   *(buffer + OFFSET_ACI_CMD_T_CONNECT +
       OFFSET_ACI_CMD_PARAMS_CONNECT_T_ADV_INTERVAL_MSB) =
-    (uint8_t)(aci_cmd_params_connect.adv_interval >> 8);
+    (uint8_t)(adv_interval >> 8);
 
   *(buffer + OFFSET_ACI_CMD_T_CONNECT +
       OFFSET_ACI_CMD_PARAMS_CONNECT_T_ADV_INTERVAL_LSB) =
-    (uint8_t)(aci_cmd_params_connect.adv_interval);
+    (uint8_t)(adv_interval);
 
-  return hal_aci_tl_send(&msg_to_send);
+  return hal_aci_tl_send(&connect_msg);
 }
 
 bool lib_aci_disconnect(aci_state_t *aci_stat, aci_disconnect_reason_t reason)
 {
+  static hal_aci_data_t disconnect_msg = {
+    .buffer = {MSG_DISCONNECT_LEN, ACI_CMD_DISCONNECT}
+  };
+
   bool ret_val;
-  uint8_t i;
-  hal_aci_data_t  msg_to_send;
-  uint8_t *buffer = &(msg_to_send.buffer[0]);
-
-  aci_cmd_params_disconnect_t aci_cmd_params_disconnect;
-  aci_cmd_params_disconnect.reason = reason;
-
-  *(buffer + OFFSET_ACI_CMD_T_LEN) = MSG_DISCONNECT_LEN;
-  *(buffer + OFFSET_ACI_CMD_T_CMD_OPCODE) = ACI_CMD_DISCONNECT;
+  uint8_t* const buffer = &(disconnect_msg.buffer[0]);
 
   *(buffer + OFFSET_ACI_CMD_T_DISCONNECT +
       OFFSET_ACI_CMD_PARAMS_DISCONNECT_T_REASON) =
-    (uint8_t)(aci_cmd_params_disconnect.reason);
+    (uint8_t)(reason);
 
-  ret_val = hal_aci_tl_send(&msg_to_send);
+  ret_val = hal_aci_tl_send(&disconnect_msg);
   /* If we have actually sent the disconnect */
   if (ret_val)
   {
@@ -146,6 +127,7 @@ bool lib_aci_disconnect(aci_state_t *aci_stat, aci_disconnect_reason_t reason)
      * If the application sends another message before we updated this
      * a ACI Pipe Error Event will be received from nRF8001
      */
+    uint8_t i;
     for (i=0; i < PIPES_ARRAY_SIZE; i++)
     {
       aci_stat->pipes_open_bitmap[i] = 0;
@@ -157,27 +139,24 @@ bool lib_aci_disconnect(aci_state_t *aci_stat, aci_disconnect_reason_t reason)
 
 bool lib_aci_send_data(uint8_t pipe, uint8_t *p_value, uint8_t size)
 {
-  aci_cmd_params_send_data_t aci_cmd_params_send_data;
-  hal_aci_data_t  msg_to_send;
-  uint8_t *buffer = &(msg_to_send.buffer[0]);
+  static hal_aci_data_t send_data_msg = {
+    .buffer = {MSG_SEND_DATA_BASE_LEN, ACI_CMD_SEND_DATA}
+  };
 
-  aci_cmd_params_send_data.tx_data.pipe_number = pipe;
-  memcpy(&(aci_cmd_params_send_data.tx_data.aci_data[0]), p_value, size);
+  uint8_t* const buffer = &(send_data_msg.buffer[0]);
 
   *(buffer + OFFSET_ACI_CMD_T_LEN) = MSG_SEND_DATA_BASE_LEN + size;
-  *(buffer + OFFSET_ACI_CMD_T_CMD_OPCODE) = ACI_CMD_SEND_DATA;
 
   *(buffer + OFFSET_ACI_CMD_T_SEND_DATA +
       OFFSET_ACI_CMD_PARAMS_SEND_DATA_T_TX_DATA +
       OFFSET_ACI_TX_DATA_T_PIPE_NUMBER) =
-    aci_cmd_params_send_data.tx_data.pipe_number;
+    pipe;
 
   memcpy((buffer + OFFSET_ACI_CMD_T_SEND_DATA +
         OFFSET_ACI_CMD_PARAMS_SEND_DATA_T_TX_DATA +
-        OFFSET_ACI_TX_DATA_T_ACI_DATA),
-      &(aci_cmd_params_send_data.tx_data.aci_data[0]), size);
+        OFFSET_ACI_TX_DATA_T_ACI_DATA), p_value, size);
 
-  return hal_aci_tl_send(&msg_to_send);
+  return hal_aci_tl_send(&send_data_msg);
 }
 
 bool lib_aci_event_get(aci_state_t *aci_stat, hal_aci_evt_t *p_aci_evt_data)
@@ -212,7 +191,6 @@ bool lib_aci_event_get(aci_state_t *aci_stat, hal_aci_evt_t *p_aci_evt_data)
         case ACI_EVT_DISCONNECTED:
             {
                 uint8_t i=0;
-
                 for (i=0; i < PIPES_ARRAY_SIZE; i++)
                 {
                   aci_stat->pipes_open_bitmap[i] = 0;
