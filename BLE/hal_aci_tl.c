@@ -196,8 +196,8 @@ void hal_aci_tl_init(aci_pins_t *aci_pins)
   /* Set local pin struct pointer */
   pins = aci_pins;
 
-  *reset_mode |= pin_to_bit_mask(pins->reset_pin);
   *reset_out |= pin_to_bit_mask(pins->reset_pin);
+  *reset_mode |= pin_to_bit_mask(pins->reset_pin);
 
   /* Set up SPI */
   m_spi_init ();
