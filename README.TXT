@@ -5,14 +5,13 @@ is used to support firmware update over BLE.
 The datasheet of the nRF8001 is located here 
 http://www.nordicsemi.com/eng/Products/Bluetooth-R-low-energy/nRF8001
 
-Optiboot is more fully described here: http://code.google.com/p/optiboot/
+Optiboot is more fully described here: https://github.com/Optiboot/optiboot
 and is the work of Peter Knight (aka Cathedrow), building on work of Jason P
 Kyle, Spiff, and Ladyada.  Arduino-specific modification are by Bill
 Westfield (aka WestfW). BLE-specific modifications are by Nordic Semiconductor
 ASA.
 
 Arduino-specific issues are tracked as part of the Arduino project
-at http://code.google.com/p/arduino
 
 ------------------------------------------------------------
 Support for Bluetooth Low Energy
